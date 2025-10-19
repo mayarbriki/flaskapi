@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 from sklearn.metrics.pairwise import cosine_similarity
@@ -9,8 +9,15 @@ app = Flask(__name__)
 # Load dataset
 df = pd.read_csv("fifa_players.csv")
 
-# Keep a copy of the original positions for filtering
-df['positions_original'] = df['positions'].astype(str)
+# Keep copies of original fields for display
+if 'positions' in df.columns:
+    df['positions_original'] = df['positions'].astype(str)
+if 'nationality' in df.columns:
+    df['nationality_original'] = df['nationality'].astype(str)
+if 'overall_rating' in df.columns:
+    df['overall_rating_original'] = df['overall_rating']
+if 'value_euro' in df.columns:
+    df['value_euro_original'] = df['value_euro']
 
 # ----- Data Preprocessing -----
 # Encode categorical columns (except original positions)
@@ -20,15 +27,51 @@ for col in categorical_cols:
         df[col] = LabelEncoder().fit_transform(df[col].astype(str))
 
 # Handle missing values
-numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
-df[numeric_cols] = df[numeric_cols].fillna(df[numeric_cols].mean())
+# Use only real numeric feature columns (exclude encoded categoricals and *_original copies)
+numeric_cols_all = df.select_dtypes(include=['float64', 'int64']).columns
+numeric_cols = [
+    c for c in numeric_cols_all
+    if not c.endswith('_original') and c not in categorical_cols
+]
+if numeric_cols:
+    df[numeric_cols] = df[numeric_cols].fillna(df[numeric_cols].mean())
 
 # Normalize numeric data
-scaler = MinMaxScaler()
-df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
-df = df.dropna(subset=numeric_cols)
+if numeric_cols:
+    scaler = MinMaxScaler()
+    df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
+    df = df.dropna(subset=numeric_cols)
 
 # ----- API Endpoint -----
+@app.route('/', methods=['GET'])
+def index():
+    """Serve a simple frontend UI."""
+    return render_template('index.html')
+
+@app.route('/players', methods=['GET'])
+def players():
+    """Lightweight player name suggestions with optional query filtering.
+
+    Query params:
+    - q: substring filter (case-insensitive)
+    - limit: max number of results (default 20, caps at 100)
+    """
+    q = (request.args.get('q') or '').strip().lower()
+    try:
+        limit = int(request.args.get('limit', 100))
+    except ValueError:
+        limit = 100
+    limit = max(1, min(limit, 100))
+
+    names_series = df['name'].dropna().astype(str)
+    unique_names = names_series.unique().tolist()
+    if q:
+        filtered = [n for n in unique_names if q in n.lower()]
+    else:
+        filtered = unique_names
+    filtered = sorted(filtered)[:limit]
+    return jsonify(filtered)
+
 @app.route('/recommend', methods=['GET'])
 def recommend():
     """
@@ -63,9 +106,18 @@ def recommend():
 
     # Get top 5 most similar players
     top_indices = np.argsort(similarities)[::-1][1:6]
-    recommendations = df_filtered.iloc[top_indices][[
-        'name', 'nationality', 'overall_rating', 'value_euro', 'positions_original'
-    ]]
+    cols_for_output = []
+    for c in ['name', 'nationality_original', 'overall_rating_original', 'value_euro_original', 'positions_original']:
+        if c in df_filtered.columns:
+            cols_for_output.append(c)
+
+    recommendations = df_filtered.iloc[top_indices][cols_for_output]
+    # Rename originals back to expected names for the frontend
+    recommendations = recommendations.rename(columns={
+        'nationality_original': 'nationality',
+        'overall_rating_original': 'overall_rating',
+        'value_euro_original': 'value_euro',
+    })
 
     return jsonify(recommendations.to_dict(orient='records'))
 
