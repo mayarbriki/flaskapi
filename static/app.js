@@ -5,6 +5,21 @@ const recommendBtn = document.getElementById('recommend-btn');
 const errorBox = document.getElementById('error');
 const table = document.getElementById('results-table');
 const tbody = table.querySelector('tbody');
+const predictBtn = document.getElementById('predict-btn');
+const predictForm = document.getElementById('predict-form');
+const predictErr = document.getElementById('predict-error');
+const predictOut = document.getElementById('predict-output');
+const ageRange = document.getElementById('pf-age');
+const ageVal = document.getElementById('age-val');
+const hRange = document.getElementById('pf-height');
+const hVal = document.getElementById('h-val');
+const wRange = document.getElementById('pf-weight');
+const wVal = document.getElementById('w-val');
+const selPos = document.getElementById('pf-positions');
+const selFoot = document.getElementById('pf-foot');
+const selBody = document.getElementById('pf-body');
+const inpNat = document.getElementById('pf-nationality');
+const natList = document.getElementById('nationality-list');
 
 let suggestAbort = null;
 
@@ -99,3 +114,109 @@ function escapeHtml(unsafe) {
 
 // Preload some player names on first load
 fetchPlayers('');
+
+// Metadata loader
+async function loadMetadata() {
+  try {
+    const res = await fetch('/metadata');
+    if (!res.ok) return;
+    const meta = await res.json();
+
+    // Positions
+    selPos.innerHTML = '';
+    (meta.positions || []).forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p;
+      opt.textContent = p;
+      selPos.appendChild(opt);
+    });
+
+    // Preferred foot
+    selFoot.innerHTML = '';
+    (meta.preferred_foot || ['Right','Left']).forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f;
+      opt.textContent = f;
+      selFoot.appendChild(opt);
+    });
+
+    // Body type
+    selBody.innerHTML = '';
+    (meta.body_type || ['Normal']).forEach(b => {
+      const opt = document.createElement('option');
+      opt.value = b;
+      opt.textContent = b;
+      selBody.appendChild(opt);
+    });
+
+    // Nationality datalist
+    natList.innerHTML = '';
+    (meta.nationality_top || []).forEach(n => {
+      const opt = document.createElement('option');
+      opt.value = n;
+      natList.appendChild(opt);
+    });
+  } catch {}
+}
+
+loadMetadata();
+
+// Range outputs
+function bindRange(rangeEl, outEl) {
+  if (!rangeEl || !outEl) return;
+  const update = () => { outEl.textContent = rangeEl.value; };
+  rangeEl.addEventListener('input', update);
+  update();
+}
+bindRange(ageRange, ageVal);
+bindRange(hRange, hVal);
+bindRange(wRange, wVal);
+document.querySelectorAll('input[type="range"][name]').forEach(r => {
+  const out = document.querySelector(`[data-out="${r.name}"]`);
+  bindRange(r, out);
+});
+
+// Predict Overall handler (form submit)
+if (predictForm) {
+  predictForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    predictErr.hidden = true;
+    predictOut.hidden = true;
+    try {
+      predictBtn.disabled = true;
+      predictForm.classList.add('loading');
+      // Collect form values
+      const form = new FormData(predictForm);
+      const payload = {};
+      form.forEach((v, k) => {
+        if (typeof v === 'string' && v.trim() !== '' && !isNaN(Number(v)) && !['preferred_foot','body_type','nationality','positions'].includes(k)) {
+          payload[k] = Number(v);
+        } else {
+          payload[k] = v;
+        }
+      });
+
+      const res = await fetch('/predict/overall', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Prediction failed');
+      }
+      predictOut.innerHTML = `
+        <div>Predicted Overall: <span class="badge">${data.overall_rounded}</span>
+          <small style="opacity:.8">(raw: ${Number(data.overall).toFixed(2)})</small>
+        </div>`;
+      predictOut.hidden = false;
+      predictOut.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } catch (e) {
+      predictErr.textContent = e.message;
+      predictErr.hidden = false;
+    } finally {
+      predictBtn.disabled = false;
+      predictForm.classList.remove('loading');
+    }
+  });
+}
