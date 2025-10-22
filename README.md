@@ -81,4 +81,7 @@ Scalability: Modular architecture to support adding new datasets (e.g., teams/le
 Compatibility
 
 Data Formats: CSV (UTF-8), JSON for API responses.
-
+Implemented APIs
+The application exposes a RESTful API backend using Flask to handle data operations, analytics, and AI integrations. The API is stateless, uses JSON payloads, and follows standard HTTP status codes. Authentication via JWT tokens is required for protected endpoints.
+All endpoints are prefixed with /api/v1/. Below is a comprehensive list, grouped by functionality.
+   
