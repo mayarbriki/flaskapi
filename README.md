@@ -84,4 +84,54 @@ Data Formats: CSV (UTF-8), JSON for API responses.
 Implemented APIs
 The application exposes a RESTful API backend using Flask to handle data operations, analytics, and AI integrations. The API is stateless, uses JSON payloads, and follows standard HTTP status codes. Authentication via JWT tokens is required for protected endpoints.
 All endpoints are prefixed with /api/v1/. Below is a comprehensive list, grouped by functionality.
-   
+Implemented APIs
+The application exposes a RESTful API backend using Flask to handle data operations, analytics, and AI integrations. The API is stateless, uses JSON payloads, and follows standard HTTP status codes. Authentication via JWT tokens is required for protected endpoints.
+All endpoints are prefixed with /api/v1/. Below is a comprehensive list, grouped by functionality.
+- Functional Requirements
+Data Ingestion and Management
+
+Players can be queried by filters, such as nationality, position, or overall rating (e.g., rating > 80).
+
+ Player Analytics and Visualization
+
+Generate summary statistics (e.g., average age by nationality, top 10 players by overall rating).
+
+Provide interactive visualizations, such as radar charts for player skill comparisons.
+
+
+AI-Powered Insights
+
+Integrate an AI API (e.g., OpenAI) to handle natural language queries, such as:
+
+“Recommend a striker for Argentina under 30 years old.”
+
+Detect anomalies in player data, such as inconsistent skill ratings, using machine learning or statistical thresholds.
+
+Provide AI-driven recommendations for code refactoring and project optimization.
+
+ Non-Functional Requirements
+ Performance
+
+Response time: < 2 seconds for queries on up to 1,000 player records.
+
+Throughput: Handle at least 50 concurrent users without performance degradation.
+
+AI inference: API responses within 5 seconds, with fallback to cached results when needed.
+
+Usability
+
+Responsive UI for desktop and mobile devices.
+
+Accessibility compliance: WCAG 2.1 AA (alt text, keyboard navigation, high contrast).
+
+Error handling: Clear and friendly messages (e.g., “Invalid CSV format: Missing overall_rating column”).
+
+
+ Reliability and Maintainability
+
+Uptime: 99% system availability with automatic database backups.
+
+Code quality: Maintain a SonarQube score > 80%; all AI-generated tests must pass CI/CD checks.
+
+Maintainability: Modular codebase to support adding new datasets (e.g., teams, leagues).
+
