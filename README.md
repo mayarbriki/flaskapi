@@ -5,7 +5,6 @@ The application processes a CSV dataset of player attributes (e.g., ratings, phy
 Technologies Used:
 
 Backend: Python (Flask)
-Frontend: React.js
 AI Integration: OpenAI API for query processing and anomaly detection
 Testing: Pytest with AI-generated test cases
 
@@ -63,19 +62,6 @@ Intuitive UI: Responsive design for desktop/mobile, with tooltips for attributes
 Accessibility: WCAG 2.1 AA compliance (e.g., alt text for charts, keyboard navigation).
 Error Handling: User-friendly messages (e.g., "Invalid CSV format: Missing 'overall_rating' column").
 
-
-Security
-
-Data Protection: Encrypt sensitive fields (e.g., player values) at rest; use HTTPS for API calls.
-Authentication: JWT tokens with expiration; rate-limiting on AI API to prevent abuse.
-Input Validation: Sanitize uploads to prevent injection attacks.
-
-
-Reliability and Maintainability
-
-Uptime: 99% availability, with automated backups of database.
-Code Quality: SonarQube score > 80%; AI-generated tests must pass CI/CD pipeline.
-Scalability: Modular architecture to support adding new datasets (e.g., teams/leagues).
 
 
 Compatibility
