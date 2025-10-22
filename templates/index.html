@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FIFA Player Recommender</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <!-- Sidebar -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <h2>FIFA Tools</h2>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="#search" onclick="scrollToSection('search-form')">Player Search</a>
+      <a href="#recommendations" onclick="scrollToSection('results')">Recommendations</a>
+      <a href="#predict" onclick="scrollToSection('predict')">Predict Overall</a>
+      <a href="#about" onclick="showAbout()">About</a>
+    </nav>
+  </div>
+
+  <!-- Toggle Button -->
+  <button class="sidebar-toggle" id="sidebarToggle">☰</button>
+
+  <div class="container">
+    <h1>FIFA Player Recommender</h1>
+    <form id="search-form" class="card" onsubmit="return false;">
+      <div class="field">
+        <label for="player">Player</label>
+        <input id="player" name="player" type="text" placeholder="Start typing a player name..." list="player-list" autocomplete="off" />
+        <datalist id="player-list"></datalist>
+      </div>
+
+      <div class="field">
+        <label for="position">Position (optional)</label>
+        <input id="position" name="position" type="text" placeholder="e.g., ST, LW, RW" />
+      </div>
+
+      <div class="actions">
+        <button id="recommend-btn" type="button">Get Recommendations</button>
+      </div>
+    </form>
+
+    <div id="results" class="card">
+      <h2>Recommendations</h2>
+      <div id="error" class="error" hidden></div>
+      <table id="results-table" hidden>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Nationality</th>
+            <th>Overall</th>
+            <th>Value (€)</th>
+            <th>Positions</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div id="predict" class="card">
+      <h2>Predict Overall</h2>
+      <form id="predict-form" onsubmit="return false;">
+        <div class="grid">
+          <div class="field">
+            <label for="pf-nationality">Nationality</label>
+            <input id="pf-nationality" name="nationality" list="nationality-list" placeholder="Start typing a country" />
+            <datalist id="nationality-list"></datalist>
+          </div>
+          <div class="field">
+            <label for="pf-positions">Primary Position</label>
+            <select id="pf-positions" name="positions"></select>
+          </div>
+          <div class="field">
+            <label for="pf-foot">Preferred Foot</label>
+            <select id="pf-foot" name="preferred_foot"></select>
+          </div>
+          <div class="field">
+            <label for="pf-body">Body Type</label>
+            <select id="pf-body" name="body_type"></select>
+          </div>
+        </div>
+
+        <div class="grid grid-3">
+          <div class="field">
+            <label>Age: <span id="age-val">25</span></label>
+            <input type="range" id="pf-age" name="age" min="16" max="45" value="25" />
+          </div>
+          <div class="field">
+            <label>Height (cm): <span id="h-val">180</span></label>
+            <input type="range" id="pf-height" name="height_cm" min="150" max="210" value="180" />
+          </div>
+          <div class="field">
+            <label>Weight (kg): <span id="w-val">75</span></label>
+            <input type="range" id="pf-weight" name="weight_kgs" min="50" max="110" value="75" />
+          </div>
+        </div>
+
+        <h3>Key Attributes</h3>
+        <div class="grid grid-3">
+          <div class="field"><label>Acceleration: <span data-out="acceleration">80</span></label><input type="range" name="acceleration" min="1" max="99" value="80" /></div>
+          <div class="field"><label>Sprint Speed: <span data-out="sprint_speed">82</span></label><input type="range" name="sprint_speed" min="1" max="99" value="82" /></div>
+          <div class="field"><label>Agility: <span data-out="agility">78</span></label><input type="range" name="agility" min="1" max="99" value="78" /></div>
+          <div class="field"><label>Reactions: <span data-out="reactions">75</span></label><input type="range" name="reactions" min="1" max="99" value="75" /></div>
+          <div class="field"><label>Balance: <span data-out="balance">70</span></label><input type="range" name="balance" min="1" max="99" value="70" /></div>
+          <div class="field"><label>Shot Power: <span data-out="shot_power">85</span></label><input type="range" name="shot_power" min="1" max="99" value="85" /></div>
+          <div class="field"><label>Stamina: <span data-out="stamina">70</span></label><input type="range" name="stamina" min="1" max="99" value="70" /></div>
+          <div class="field"><label>Strength: <span data-out="strength">65</span></label><input type="range" name="strength" min="1" max="99" value="65" /></div>
+          <div class="field"><label>Long Shots: <span data-out="long_shots">72</span></label><input type="range" name="long_shots" min="1" max="99" value="72" /></div>
+          <div class="field"><label>Positioning: <span data-out="positioning">68</span></label><input type="range" name="positioning" min="1" max="99" value="68" /></div>
+          <div class="field"><label>Vision: <span data-out="vision">65</span></label><input type="range" name="vision" min="1" max="99" value="65" /></div>
+          <div class="field"><label>Penalties: <span data-out="penalties">60</span></label><input type="range" name="penalties" min="1" max="99" value="60" /></div>
+          <div class="field"><label>Composure: <span data-out="composure">70</span></label><input type="range" name="composure" min="1" max="99" value="70" /></div>
+          <div class="field"><label>Crossing: <span data-out="crossing">65</span></label><input type="range" name="crossing" min="1" max="99" value="65" /></div>
+          <div class="field"><label>Finishing: <span data-out="finishing">70</span></label><input type="range" name="finishing" min="1" max="99" value="70" /></div>
+          <div class="field"><label>Heading Accuracy: <span data-out="heading_accuracy">60</span></label><input type="range" name="heading_accuracy" min="1" max="99" value="60" /></div>
+          <div class="field"><label>Short Passing: <span data-out="short_passing">72</span></label><input type="range" name="short_passing" min="1" max="99" value="72" /></div>
+          <div class="field"><label>Volleys: <span data-out="volleys">58</span></label><input type="range" name="volleys" min="1" max="99" value="58" /></div>
+          <div class="field"><label>Dribbling: <span data-out="dribbling">74</span></label><input type="range" name="dribbling" min="1" max="99" value="74" /></div>
+          <div class="field"><label>Curve: <span data-out="curve">60</span></label><input type="range" name="curve" min="1" max="99" value="60" /></div>
+          <div class="field"><label>Free Kick Accuracy: <span data-out="freekick_accuracy">55</span></label><input type="range" name="freekick_accuracy" min="1" max="99" value="55" /></div>
+          <div class="field"><label>Long Passing: <span data-out="long_passing">68</span></label><input type="range" name="long_passing" min="1" max="99" value="68" /></div>
+          <div class="field"><label>Ball Control: <span data-out="ball_control">73</span></label><input type="range" name="ball_control" min="1" max="99" value="73" /></div>
+        </div>
+
+        <div class="actions">
+          <button id="predict-btn" type="submit">Predict Overall</button>
+        </div>
+        <div id="predict-error" class="error" hidden></div>
+        <div id="predict-output" class="success" hidden></div>
+      </form>
+    </div>
+
+    <div id="extra" class="card">
+
+      
+  <!-- ayoub -->
+  <h2>Stats & Classements</h2>
+  <div class="actions">
+    <button id="btn-stats">Stats Globales</button>
+    <button id="btn-top-players">Top 10 joueurs (Overall)</button>
+    <button id="btn-top-nations">Top 10 nations</button>
+  </div>
+  <div id="extra-output"></div>
+
+  </div>
+
+  </div>
+
+  
+
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
