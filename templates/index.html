@@ -7,6 +7,22 @@
   <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
+  <!-- Sidebar -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <h2>FIFA Tools</h2>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="#search" onclick="scrollToSection('search-form')">Player Search</a>
+      <a href="#recommendations" onclick="scrollToSection('results')">Recommendations</a>
+      <a href="#predict" onclick="scrollToSection('predict')">Predict Overall</a>
+      <a href="#about" onclick="showAbout()">About</a>
+    </nav>
+  </div>
+
+  <!-- Toggle Button -->
+  <button class="sidebar-toggle" id="sidebarToggle">☰</button>
+
   <div class="container">
     <h1>FIFA Player Recommender</h1>
     <form id="search-form" class="card" onsubmit="return false;">

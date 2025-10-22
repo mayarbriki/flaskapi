@@ -220,3 +220,70 @@ if (predictForm) {
     }
   });
 }
+
+// Sidebar functionality
+const sidebar = document.getElementById('sidebar');
+const sidebarToggle = document.getElementById('sidebarToggle');
+let sidebarOverlay = null;
+
+// Create overlay for mobile
+function createOverlay() {
+  if (!sidebarOverlay) {
+    sidebarOverlay = document.createElement('div');
+    sidebarOverlay.className = 'sidebar-overlay';
+    document.body.appendChild(sidebarOverlay);
+    
+    sidebarOverlay.addEventListener('click', closeSidebar);
+  }
+}
+
+function toggleSidebar() {
+  sidebar.classList.toggle('active');
+  sidebarToggle.classList.toggle('active');
+  
+  if (window.innerWidth <= 767) {
+    createOverlay();
+    sidebarOverlay.classList.toggle('active');
+  }
+}
+
+function closeSidebar() {
+  sidebar.classList.remove('active');
+  sidebarToggle.classList.remove('active');
+  if (sidebarOverlay) {
+    sidebarOverlay.classList.remove('active');
+  }
+}
+
+function scrollToSection(elementId) {
+  const element = document.getElementById(elementId);
+  if (element) {
+    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    closeSidebar();
+  }
+}
+
+function showAbout() {
+  alert('FIFA Player Recommender\n\nFind similar players and predict overall ratings using machine learning.\n\nFeatures:\n• Player recommendations\n• Overall rating prediction\n• Advanced player statistics');
+  closeSidebar();
+}
+
+// Event listeners
+sidebarToggle.addEventListener('click', toggleSidebar);
+
+// Close sidebar when clicking outside on desktop
+document.addEventListener('click', (e) => {
+  if (window.innerWidth > 767 && 
+      !sidebar.contains(e.target) && 
+      !sidebarToggle.contains(e.target) &&
+      sidebar.classList.contains('active')) {
+    closeSidebar();
+  }
+});
+
+// Handle window resize
+window.addEventListener('resize', () => {
+  if (window.innerWidth > 767 && sidebarOverlay) {
+    sidebarOverlay.classList.remove('active');
+  }
+});
