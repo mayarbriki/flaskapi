@@ -6,11 +6,16 @@ import numpy as np
 import joblib
 import json
 import os
+import urllib.request
+import urllib.parse
+import urllib.error
+import html
 
 app = Flask(__name__)
 
 # Load dataset
-df = pd.read_csv("fifa_players.csv")
+raw_df = pd.read_csv("fifa_players.csv")
+df = raw_df.copy()
 
 # Keep copies of original fields for display
 if 'positions' in df.columns:
@@ -130,6 +135,299 @@ def _prepare_input_row(payload: dict):
     X = pd.DataFrame([row])[features]
     Xs = _overall_scaler.transform(X)
     return Xs
+
+def generate_ai_scout_report(player_data):
+    """Simule un appel d'API IA pour générer un rapport de scoutage.
+
+    Entrée attendue (dict):
+    - name: str
+    - positions/position: str
+    - overall ou overall_rating: number
+    - potential: number
+    - top_stats: list[(stat_name, value)] (jusqu'à 10)
+    """
+    name = str(player_data.get('name', 'Joueur')).strip()
+    position = str(player_data.get('position') or player_data.get('positions') or '').strip()
+    primary_position = position.split(',')[0].strip() if position else ''
+
+    overall = player_data.get('overall')
+    if overall is None:
+        overall = player_data.get('overall_rating')
+    potential = player_data.get('potential')
+    top_stats = player_data.get('top_stats') or []
+
+    def norm_val(v):
+        try:
+            if pd.isna(v):
+                return None
+            v = float(v)
+            return int(v) if v.is_integer() else round(v, 1)
+        except Exception:
+            return None
+
+    o = norm_val(overall)
+    p = norm_val(potential)
+
+    # Synthèse (3 phrases basées sur Overall/Potential)
+    synth_parts = []
+    if primary_position:
+        synth_parts.append(f"Profil de recrutement pour {name} ({primary_position}).")
+    else:
+        synth_parts.append(f"Profil de recrutement pour {name}.")
+    if o is not None and p is not None:
+        margin = p - o
+        if margin >= 6:
+            marge_txt = "une marge de progression importante"
+        elif margin >= 3:
+            marge_txt = "une marge de progression modérée"
+        else:
+            marge_txt = "une progression mesurée"
+        synth_parts.append(f"Évalué à {o} d'overall avec un potentiel projeté à {p}, indiquant {marge_txt}.")
+    elif o is not None:
+        synth_parts.append(f"Évalué à {o} d'overall.")
+    elif p is not None:
+        synth_parts.append(f"Potentiel projeté à {p}.")
+    else:
+        synth_parts.append("Indicateurs globaux non disponibles.")
+    synth_parts.append("Projection positive à court/moyen terme au regard des indicateurs clés.")
+
+    # Points forts (3 à 5)
+    strengths = []
+    k = min(5, len(top_stats))
+    for i, item in enumerate(top_stats[:k]):
+        try:
+            stat_name, stat_val = item
+        except Exception:
+            if isinstance(item, dict):
+                stat_name = item.get('stat') or item.get('name') or 'Attribut'
+                stat_val = item.get('value')
+            else:
+                stat_name = 'Attribut'
+                stat_val = None
+        pretty = str(stat_name).replace('_', ' ').title()
+        v = norm_val(stat_val)
+        v_str = "N/A" if v is None else str(v)
+        if i == 0:
+            analysis = "Impact déterminant dans les situations clés."
+        elif i == 1:
+            analysis = "Atout fiable et répétable au haut niveau."
+        elif i == 2:
+            analysis = "Contribution tangible à la structure collective."
+        elif i == 3:
+            analysis = "Renforce la polyvalence du profil."
+        else:
+            analysis = "Indicateur de constance sur la durée."
+        strengths.append(f"- {pretty} {v_str}: {analysis}")
+
+    # Conclusion
+    if o is not None and p is not None:
+        growth = p - o
+        if growth >= 6:
+            reco = "Investissement prioritaire recommandé, avec plan de développement individualisé."
+        elif growth >= 3:
+            reco = "Candidat sérieux à suivre de près; engagement opportuniste selon contexte budgétaire."
+        else:
+            reco = "Profil mature apte à contribuer rapidement selon besoin immédiat."
+    else:
+        reco = "Recommandation sous réserve d'observation complémentaire."
+
+    # Assemblage du rapport
+    title = f"Rapport de Scout IA - {name}"
+    sep = "-" * len(title)
+    report = []
+    report.append(title)
+    report.append(sep)
+    report.append(f"Synthèse : {' '.join(synth_parts)}")
+    report.append("Points Forts Clés :")
+    if strengths:
+        report.extend(strengths[:max(3, min(5, len(strengths)))])
+    else:
+        report.append("- Données insuffisantes pour extraire des points forts.")
+    report.append(f"Conclusion et Potentiel : {reco}")
+
+    return "\n".join(report)
+
+def _chunk_text(text: str, max_chars: int = 450) -> list[str]:
+    """Split text into chunks under max_chars, preferring newline/space boundaries."""
+    if text is None:
+        return ['']
+    s = str(text)
+    if len(s) <= max_chars:
+        return [s]
+    chunks = []
+    current = []
+    current_len = 0
+    # Prefer splitting on lines first
+    for line in s.split('\n'):
+        line = line.rstrip('\r')
+        if not line:
+            if current_len + 1 <= max_chars:
+                current.append('')
+                current_len += 1
+            else:
+                chunks.append('\n'.join(current))
+                current = ['']
+                current_len = 1
+            continue
+        if current_len + len(line) + (1 if current else 0) <= max_chars:
+            current.append(line)
+            current_len += len(line) + (1 if len(current) > 1 else 0)
+        else:
+            # If line itself is too long, split on spaces
+            if len(line) > max_chars:
+                words = line.split(' ')
+                buf = ''
+                for w in words:
+                    if not buf:
+                        buf = w
+                    elif len(buf) + 1 + len(w) <= max_chars:
+                        buf += ' ' + w
+                    else:
+                        # flush buf
+                        if current_len + len(buf) + (1 if current else 0) <= max_chars:
+                            current.append(buf)
+                            current_len += len(buf) + (1 if len(current) > 1 else 0)
+                        else:
+                            chunks.append('\n'.join(current))
+                            current = [buf]
+                            current_len = len(buf)
+                        buf = w
+                if buf:
+                    if current_len + len(buf) + (1 if current else 0) <= max_chars:
+                        current.append(buf)
+                        current_len += len(buf) + (1 if len(current) > 1 else 0)
+                    else:
+                        chunks.append('\n'.join(current))
+                        current = [buf]
+                        current_len = len(buf)
+            else:
+                # flush current as a chunk and start a new one with this line
+                if current:
+                    chunks.append('\n'.join(current))
+                current = [line]
+                current_len = len(line)
+    if current:
+        chunks.append('\n'.join(current))
+    return chunks
+
+def _translate_try_providers(text_to_translate, target_language):
+    base = '' if text_to_translate is None else str(text_to_translate)
+    lang_norm = str(target_language or '').strip().lower()
+    if lang_norm in ('french', 'français', 'francais', 'fr'):
+        return base, 'passthrough'
+    lang_map = {
+        'english': 'en', 'en': 'en',
+        'spanish': 'es', 'es': 'es', 'español': 'es',
+        'german': 'de', 'de': 'de', 'deutsch': 'de',
+        'italian': 'it', 'it': 'it', 'italiano': 'it',
+        'portuguese': 'pt', 'pt': 'pt', 'português': 'pt',
+        'dutch': 'nl', 'nl': 'nl', 'nederlands': 'nl',
+        'turkish': 'tr', 'tr': 'tr', 'türkçe': 'tr',
+        'arabic': 'ar', 'ar': 'ar', 'العربية': 'ar',
+        'french': 'fr', 'français': 'fr', 'francais': 'fr', 'fr': 'fr',
+    }
+    target_code = lang_map.get(lang_norm)
+    if not target_code:
+        return f"[Traduit en {target_language}] - " + base, 'simulation'
+    if target_code == 'fr':
+        return base, 'passthrough'
+    # LibreTranslate attempts (chunked)
+    candidates = []
+    env_url = os.environ.get('LIBRE_TRANSLATE_URL', '').strip()
+    if env_url:
+        candidates.append(env_url)
+    candidates.extend([
+        'https://translate.argosopentech.com',
+        'https://libretranslate.de',
+        'https://libretranslate.com',
+    ])
+    for base_url in candidates:
+        try:
+            libre_url = base_url.rstrip('/') + '/translate'
+            parts = _chunk_text(base, max_chars=1800)
+            translated_parts = []
+            ok = True
+            for part in parts:
+                libre_payload = {
+                    'q': part,
+                    'source': 'fr',
+                    'target': target_code,
+                    'format': 'text',
+                }
+                libre_api_key = os.environ.get('LIBRE_TRANSLATE_API_KEY')
+                if libre_api_key:
+                    libre_payload['api_key'] = libre_api_key
+                req = urllib.request.Request(
+                    libre_url,
+                    data=json.dumps(libre_payload).encode('utf-8'),
+                    headers={ 'Content-Type': 'application/json' }
+                )
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    body = resp.read().decode('utf-8', errors='ignore')
+                data_lt = json.loads(body)
+                translated = data_lt.get('translatedText') or data_lt.get('translation')
+                if isinstance(translated, str) and translated.strip():
+                    translated_parts.append(translated)
+                else:
+                    ok = False
+                    break
+            if ok and translated_parts:
+                return '\n'.join(translated_parts), f'libretranslate:{base_url}'
+        except Exception:
+            continue
+    # MyMemory (chunked, 500 chars limit)
+    try:
+        parts = _chunk_text(base, max_chars=480)
+        out_parts = []
+        for part in parts:
+            mm_url = 'https://api.mymemory.translated.net/get?'+ urllib.parse.urlencode({
+                'q': part,
+                'langpair': f'fr|{target_code}',
+            })
+            with urllib.request.urlopen(mm_url, timeout=10) as resp:
+                body = resp.read().decode('utf-8', errors='ignore')
+            data_mm = json.loads(body)
+            status = int(data_mm.get('responseStatus', 500))
+            if status != 200:
+                raise RuntimeError(f"MyMemory status {status}")
+            translated = (data_mm.get('responseData') or {}).get('translatedText')
+            if not isinstance(translated, str) or not translated.strip():
+                raise RuntimeError("MyMemory empty chunk")
+            out_parts.append(html.unescape(translated))
+        if out_parts:
+            return '\n'.join(out_parts), 'mymemory'
+    except Exception:
+        pass
+    # Google
+    api_key = os.environ.get('GOOGLE_TRANSLATE_API_KEY')
+    if api_key:
+        try:
+            url = "https://translation.googleapis.com/language/translate/v2?key=" + urllib.parse.quote(api_key)
+            payload = {
+                "q": base[:4500],
+                "target": target_code,
+                "format": "text",
+                "source": "fr",
+            }
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode('utf-8'),
+                headers={ 'Content-Type': 'application/json' }
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                body = resp.read().decode('utf-8', errors='ignore')
+            data = json.loads(body)
+            translations = data.get('data', {}).get('translations', [])
+            if translations:
+                translated = translations[0].get('translatedText', '')
+                return html.unescape(translated), 'google'
+        except Exception:
+            pass
+    return f"[Traduit en {target_language}] - " + base, 'simulation'
+
+def translate_text_ai(text_to_translate, target_language):
+    text, _provider = _translate_try_providers(text_to_translate, target_language)
+    return text
 
 # ----- API Endpoint -----
 @app.route('/', methods=['GET'])
@@ -276,6 +574,98 @@ def predict_overall():
         return jsonify({ 'error': str(e) }), 500
     except Exception as e:
         return jsonify({ 'error': f'Prediction failed: {e}' }), 500
+
+@app.route('/api/scout-report', methods=['POST'])
+def api_scout_report():
+    """Génère un rapport de scoutage IA pour un joueur donné.
+
+    Corps JSON attendu: { "player_name": "L. Messi" }
+    Réponse: { "report": "..." }
+    """
+    try:
+        payload = request.get_json(silent=True) or {}
+        player_name = (payload.get('player_name') or '').strip()
+        if not player_name:
+            return jsonify({ 'error': 'Corps JSON invalide. Attendu: {"player_name": "Nom"}'}), 400
+
+        if 'name' not in raw_df.columns:
+            return jsonify({ 'error': 'La colonne "name" est absente du dataset.' }), 500
+
+        names = raw_df['name'].astype(str)
+        exact_mask = names.str.strip().str.lower() == player_name.lower()
+        candidates = raw_df[exact_mask]
+        if candidates.empty:
+            contains_mask = names.str.lower().str.contains(player_name.lower(), na=False)
+            candidates = raw_df[contains_mask]
+        if candidates.empty:
+            return jsonify({ 'error': f'Joueur "{player_name}" introuvable.' }), 404
+
+        row = candidates.iloc[0]
+
+        # Champs principaux
+        name = str(row.get('name', player_name))
+        positions_val = row.get('positions', None)
+        if positions_val is None and 'position' in raw_df.columns:
+            positions_val = row.get('position', None)
+
+        def pick(*keys):
+            for k in keys:
+                if k in raw_df.columns:
+                    return row.get(k, None)
+            return None
+
+        overall = pick('overall_rating', 'overall')
+        potential = pick('potential', 'potential_rating')
+
+        # Top 10 statistiques numériques
+        numeric_cols = raw_df.select_dtypes(include=[np.number]).columns.tolist()
+        exclude = {
+            'overall_rating','overall','potential',
+            'value_euro','wage_euro','release_clause_euro',
+            'sofifa_id','player_id','id','age','height_cm','weight_kg'
+        }
+        top_candidates = []
+        for c in numeric_cols:
+            if c in exclude:
+                continue
+            try:
+                val = row[c]
+            except Exception:
+                continue
+            if pd.isna(val):
+                continue
+            try:
+                top_candidates.append((c, float(val)))
+            except Exception:
+                continue
+        top_candidates.sort(key=lambda x: x[1], reverse=True)
+        top_stats = top_candidates[:10]
+
+        player_data = {
+            'name': name,
+            'positions': positions_val,
+            'overall_rating': overall,
+            'potential': potential,
+            'top_stats': top_stats,
+        }
+
+        report = generate_ai_scout_report(player_data)
+        return jsonify({ 'report': report }), 200
+    except Exception as e:
+        return jsonify({ 'error': f"Échec de génération du rapport: {e}" }), 500
+
+@app.route('/api/translate-report', methods=['POST'])
+def api_translate_report():
+    try:
+        payload = request.get_json(silent=True) or {}
+        text = payload.get('text', None)
+        target_lang = payload.get('target_lang', None)
+        if text is None or not isinstance(target_lang, str) or not target_lang.strip():
+            return jsonify({ 'error': 'Champs manquants: "text" et/ou "target_lang"' }), 400
+        translated, provider = _translate_try_providers(text, target_lang)
+        return jsonify({ 'translated_text': translated, 'provider': provider }), 200
+    except Exception as e:
+        return jsonify({ 'error': f"Échec de traduction: {e}" }), 500
 
 # ----- Run the App -----
 if __name__ == '__main__':

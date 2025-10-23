@@ -21,6 +21,18 @@ const selBody = document.getElementById('pf-body');
 const inpNat = document.getElementById('pf-nationality');
 const natList = document.getElementById('nationality-list');
 
+// AI Scout Report elements
+const scoutForm = document.getElementById('scout-form');
+const scoutBtn = document.getElementById('scout-btn');
+const scoutInput = document.getElementById('sr-player');
+const scoutErr = document.getElementById('scout-error');
+const scoutOut = document.getElementById('scout-output');
+const scoutLang = document.getElementById('sr-lang');
+const translateBtn = document.getElementById('translate-btn');
+const scoutTransErr = document.getElementById('scout-trans-error');
+const scoutTranslation = document.getElementById('scout-translation');
+const scoutProvider = document.getElementById('scout-provider');
+
 let suggestAbort = null;
 
 async function fetchPlayers(query) {
@@ -50,6 +62,59 @@ playerInput.addEventListener('input', (e) => {
     fetchPlayers(q);
   }
 });
+
+// Mirror suggestions on the scout input as well
+if (scoutInput) {
+  scoutInput.addEventListener('input', (e) => {
+    const q = e.target.value.trim();
+    if (q.length >= 2) {
+      fetchPlayers(q);
+    }
+  });
+}
+
+if (translateBtn) {
+  translateBtn.addEventListener('click', async () => {
+    if (scoutTransErr) scoutTransErr.hidden = true;
+    if (scoutTranslation) { scoutTranslation.hidden = true; scoutTranslation.textContent = ''; }
+
+    const reportText = (scoutOut && !scoutOut.hidden && typeof scoutOut.textContent === 'string') ? scoutOut.textContent.trim() : '';
+    if (!reportText) {
+      if (scoutTransErr) { scoutTransErr.textContent = 'Generate a report first.'; scoutTransErr.hidden = false; }
+      return;
+    }
+    const targetLang = (scoutLang?.value || '').trim() || 'English';
+
+    try {
+      translateBtn.disabled = true;
+      if (scoutForm) scoutForm.classList.add('loading');
+      const res = await fetch('/api/translate-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: reportText, target_lang: targetLang })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Translation failed');
+      }
+      if (scoutTranslation) {
+        scoutTranslation.textContent = data.translated_text || '';
+        scoutTranslation.hidden = false;
+        scoutTranslation.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      if (scoutProvider) {
+        const pv = data.provider || 'unknown';
+        scoutProvider.textContent = `Provider: ${pv}`;
+        scoutProvider.hidden = false;
+      }
+    } catch (e) {
+      if (scoutTransErr) { scoutTransErr.textContent = e.message; scoutTransErr.hidden = false; }
+    } finally {
+      translateBtn.disabled = false;
+      if (scoutForm) scoutForm.classList.remove('loading');
+    }
+  });
+}
 
 recommendBtn.addEventListener('click', async () => {
   const player = playerInput.value.trim();
@@ -97,6 +162,47 @@ recommendBtn.addEventListener('click', async () => {
     recommendBtn.disabled = false;
   }
 });
+
+// Generate AI Scout Report handler
+if (scoutBtn) {
+  scoutBtn.addEventListener('click', async () => {
+    const playerName = (scoutInput?.value || '').trim() || (playerInput?.value || '').trim();
+    if (scoutErr) scoutErr.hidden = true;
+    if (scoutOut) { scoutOut.hidden = true; scoutOut.textContent = ''; }
+    if (scoutTransErr) scoutTransErr.hidden = true;
+    if (scoutTranslation) { scoutTranslation.hidden = true; scoutTranslation.textContent = ''; }
+    if (scoutProvider) { scoutProvider.hidden = true; scoutProvider.textContent = ''; }
+
+    if (!playerName) {
+      if (scoutErr) { scoutErr.textContent = 'Please enter a player name.'; scoutErr.hidden = false; }
+      return;
+    }
+
+    try {
+      scoutBtn.disabled = true;
+      if (scoutForm) scoutForm.classList.add('loading');
+      const res = await fetch('/api/scout-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ player_name: playerName })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Request failed');
+      }
+      if (scoutOut) {
+        scoutOut.textContent = data.report || '';
+        scoutOut.hidden = false;
+        scoutOut.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    } catch (e) {
+      if (scoutErr) { scoutErr.textContent = e.message; scoutErr.hidden = false; }
+    } finally {
+      scoutBtn.disabled = false;
+      if (scoutForm) scoutForm.classList.remove('loading');
+    }
+  });
+}
 
 function showError(msg) {
   errorBox.textContent = msg;

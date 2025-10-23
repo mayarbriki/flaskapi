@@ -15,6 +15,7 @@
     <nav class="sidebar-nav">
       <a href="#search" onclick="scrollToSection('search-form')">Player Search</a>
       <a href="#recommendations" onclick="scrollToSection('results')">Recommendations</a>
+      <a href="#scout" onclick="scrollToSection('scout')">AI Scout Report</a>
       <a href="#predict" onclick="scrollToSection('predict')">Predict Overall</a>
       <a href="#about" onclick="showAbout()">About</a>
     </nav>
@@ -57,6 +58,41 @@
         </thead>
         <tbody></tbody>
       </table>
+    </div>
+
+    <div id="scout" class="card">
+      <h2>AI Scout Report</h2>
+      <form id="scout-form" onsubmit="return false;">
+        <div class="field">
+          <label for="sr-player">Player</label>
+          <input id="sr-player" type="text" placeholder="Start typing a player name..." list="player-list" autocomplete="off" />
+        </div>
+        <div class="grid">
+          <div class="field">
+            <label for="sr-lang">Target Language</label>
+            <select id="sr-lang">
+              <option>English</option>
+              <option>Spanish</option>
+              <option>German</option>
+              <option>Italian</option>
+              <option>Portuguese</option>
+              <option>Dutch</option>
+              <option>Turkish</option>
+              <option>Arabic</option>
+              <option>French</option>
+            </select>
+          </div>
+        </div>
+        <div class="actions">
+          <button id="scout-btn" type="button">Generate Report</button>
+          <button id="translate-btn" type="button">Translate</button>
+        </div>
+        <div id="scout-error" class="error" hidden></div>
+        <pre id="scout-output" class="report" hidden></pre>
+        <div id="scout-trans-error" class="error" hidden></div>
+        <pre id="scout-translation" class="report" hidden></pre>
+        <div id="scout-provider" class="success" hidden></div>
+      </form>
     </div>
 
     <div id="predict" class="card">
