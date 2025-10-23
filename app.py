@@ -1280,7 +1280,10 @@ def auth_login():
 
 @app.route('/auth/logout', methods=['POST'])
 def auth_logout():
-    session.pop('uid', None)
+    try:
+        session.clear()
+    except Exception:
+        session.pop('uid', None)
     return jsonify({ 'ok': True })
 
 @app.route('/auth/me', methods=['GET'])

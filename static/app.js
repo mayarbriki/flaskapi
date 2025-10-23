@@ -20,6 +20,13 @@ const arToken = document.getElementById('ar-token');
 const arPass = document.getElementById('ar-pass');
 const arBtn = document.getElementById('ar-btn');
 const arErr = document.getElementById('ar-err');
+// Role classification elements
+const rcForm = document.getElementById('rc-form');
+const rcPlayer = document.getElementById('rc-player');
+const rcLabels = document.getElementById('rc-labels');
+const rcRun = document.getElementById('rc-run');
+const rcErr = document.getElementById('rc-error');
+const rcOut = document.getElementById('rc-out');
 
 // ----- Auth wiring -----
 function setProtectedVisible(isAuthed) {
@@ -410,6 +417,16 @@ if (scoutInput) {
   });
 }
 
+// Mirror suggestions on the role classification input as well
+if (rcPlayer) {
+  rcPlayer.addEventListener('input', (e) => {
+    const q = e.target.value.trim();
+    if (q.length >= 2) {
+      fetchPlayers(q);
+    }
+  });
+}
+
 if (translateBtn) {
   translateBtn.addEventListener('click', async () => {
     if (scoutTransErr) scoutTransErr.hidden = true;
@@ -540,6 +557,35 @@ if (scoutBtn) {
     }
   });
 }
+
+// ----- AI Role Classification -----
+if (rcRun) rcRun.addEventListener('click', async () => {
+  if (rcErr) rcErr.hidden = true;
+  if (rcOut) { rcOut.hidden = true; rcOut.textContent = ''; }
+  const name = (rcPlayer?.value || '').trim();
+  if (!name) { if (rcErr) { rcErr.textContent = 'Select a player.'; rcErr.hidden = false; } return; }
+  const labelsStr = (rcLabels?.value || '').trim();
+  const payload = { name };
+  if (labelsStr) payload.labels = labelsStr.split(',').map(s => s.trim()).filter(Boolean);
+  try {
+    const res = await fetch('/api/position-classify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || 'Classification failed');
+    let text = '';
+    if (data && Array.isArray(data.labels) && Array.isArray(data.scores)) {
+      const zipped = data.labels.map((label, i) => ({ label, score: data.scores[i] }));
+      zipped.sort((a,b) => b.score - a.score);
+      const top = zipped[0];
+      text += `Top role: ${top.label} (${(top.score*100).toFixed(1)}%)\n\nScores:\n`;
+      zipped.forEach(z => { text += `- ${z.label}: ${(z.score*100).toFixed(1)}%\n`; });
+    } else {
+      text = JSON.stringify(data, null, 2);
+    }
+    if (rcOut) { rcOut.textContent = text; rcOut.hidden = false; }
+  } catch (e) {
+    if (rcErr) { rcErr.textContent = e.message; rcErr.hidden = false; }
+  }
+});
 
 function showError(msg) {
   errorBox.textContent = msg;

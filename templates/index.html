@@ -15,13 +15,14 @@
 
     <nav class="sidebar-nav">
       <a href="#search" onclick="scrollToSection('search-form')">Player Search</a>
-      <a href="#recommendations" onclick="scrollToSection('results')">Recommendations</a>
+      <a href="#recommendations" onclick="scrollToSection('recommendations')">Recommendations</a>
       <a href="#browse" onclick="scrollToSection('browse')">Browse Players</a>
       <a href="#topstats" onclick="scrollToSection('topstats')">Top Players</a>
       <a href="#compare" onclick="scrollToSection('compare')">Compare</a>
       <a href="#anomalies" onclick="scrollToSection('anomalies')">Anomalies</a>
       <a href="#histogram" onclick="scrollToSection('histogram')">Histogram</a>
       <a href="#scout" onclick="scrollToSection('scout')">AI Scout Report</a>
+      <a href="#roleclass" onclick="scrollToSection('roleclass')">AI Role Classification</a>
       <a href="#predict" onclick="scrollToSection('predict')">Predict Overall</a>
       <a href="#about" onclick="showAbout()">About</a>
     </nav>
@@ -39,7 +40,7 @@
       </div>
     </div>
     <div id="recommendations" class="card" data-protected="1">
-      <h2>Recommendations</h2>
+      <h2>Recommendations & Compare — Recommendations</h2>
       <form id="search-form" onsubmit="return false;">
         <div class="grid grid-3">
           <div class="field">
@@ -74,7 +75,7 @@
     </div>
 
     <div id="browse" class="card" data-protected="1">
-      <h2>Browse Players</h2>
+      <h2>Players Management — Browse & Export</h2>
       <form id="browse-form" onsubmit="return false;">
         <div class="grid grid-3">
           <div class="field">
@@ -165,7 +166,7 @@
     </div>
 
     <div id="topstats" class="card" data-protected="1">
-      <h2>Top Players</h2>
+      <h2>Analytics & Insights — Top Players</h2>
       <form id="top-form" onsubmit="return false;">
         <div class="grid grid-3">
           <div class="field">
@@ -216,7 +217,7 @@
     </div>
 
     <div id="compare" class="card" data-protected="1">
-      <h2>Compare Players</h2>
+      <h2>Recommendations & Compare — Compare</h2>
       <form id="compare-form" onsubmit="return false;">
         <div class="grid grid-3">
           <div class="field">
@@ -249,7 +250,7 @@
     </div>
 
     <div id="anomalies" class="card" data-protected="1">
-      <h2>Anomaly Detection</h2>
+      <h2>Analytics & Insights — Anomaly Detection</h2>
       <form id="an-form" onsubmit="return false;">
         <div class="grid grid-3">
           <div class="field">
@@ -287,7 +288,7 @@
     </div>
 
     <div id="histogram" class="card" data-protected="1">
-      <h2>Histogram</h2>
+      <h2>Analytics & Insights — Histogram</h2>
       <form id="hg-form" onsubmit="return false;">
         <div class="grid grid-3">
           <div class="field">
@@ -351,6 +352,27 @@
         <pre id="scout-translation" class="report" hidden></pre>
         <div id="scout-provider" class="success" hidden></div>
       </form>
+    </div>
+
+    <div id="roleclass" class="card" data-protected="1">
+      <h2>AI Assistant — Role Classification</h2>
+      <form id="rc-form" onsubmit="return false;">
+        <div class="grid">
+          <div class="field" style="min-width:260px;">
+            <label for="rc-player">Player</label>
+            <input id="rc-player" list="player-list" placeholder="Start typing a player name..." />
+          </div>
+          <div class="field" style="flex:1;">
+            <label for="rc-labels">Candidate Roles (optional, comma-separated)</label>
+            <input id="rc-labels" placeholder="GK,CB,LB,RB,CDM,CM,CAM,LW,RW,ST" />
+          </div>
+          <div class="actions" style="align-self:end;">
+            <button id="rc-run" type="button">Classify</button>
+          </div>
+        </div>
+      </form>
+      <div id="rc-error" class="error" hidden></div>
+      <pre id="rc-out" class="report" hidden></pre>
     </div>
 
     <div id="predict" class="card" data-protected="1">
