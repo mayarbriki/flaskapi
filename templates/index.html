@@ -132,6 +132,7 @@
           <div class="actions" style="align-self:end;">
             <button id="bp-apply" type="button">Apply Filters</button>
             <button id="bp-export" type="button">Export CSV</button>
+            <button id="bp-semantic" type="button">Semantic Search</button>
           </div>
         </div>
       </form>
@@ -233,6 +234,11 @@
         </thead>
         <tbody></tbody>
       </table>
+      <div class="actions" style="margin-top:.5rem;">
+        <button id="cp-explain" type="button">Explain Comparison</button>
+      </div>
+      <div id="cp-explain-error" class="error" hidden></div>
+      <pre id="cp-explain-out" class="report" hidden></pre>
     </div>
 
     <div id="anomalies" class="card">
@@ -422,7 +428,28 @@
         <button id="pd-close" type="button" class="close">×</button>
       </div>
       <div id="pd-body" class="modal-body"></div>
+      <div class="modal-footer">
+        <button id="pd-classify" type="button">Classify Role</button>
+        <div id="pd-classify-error" class="error" hidden></div>
+      </div>
     </div>
+  </div>
+
+  <div id="qa" class="card">
+    <h2>Dataset Q&A</h2>
+    <form id="qa-form" onsubmit="return false;">
+      <div class="grid">
+        <div class="field" style="flex:1;">
+          <label for="qa-q">Ask a question</label>
+          <input id="qa-q" placeholder="e.g., Who are the top young ST by sprint_speed?" />
+        </div>
+        <div class="actions" style="align-self:end;">
+          <button id="qa-ask" type="button">Ask</button>
+        </div>
+      </div>
+    </form>
+    <div id="qa-error" class="error" hidden></div>
+    <pre id="qa-out" class="report" hidden></pre>
   </div>
 
   <script src="/static/app.js"></script>

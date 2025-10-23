@@ -12,6 +12,8 @@ import urllib.request
 import urllib.parse
 import urllib.error
 import html
+from sentence_transformers import SentenceTransformer  # local embeddings
+from transformers import pipeline  # local zero-shot and text2text
 
 app = Flask(__name__)
 
@@ -28,6 +30,60 @@ if 'overall_rating' in df.columns:
     df['overall_rating_original'] = df['overall_rating']
 if 'value_euro' in df.columns:
     df['value_euro_original'] = df['value_euro']
+
+# ----- Local HF model helpers (free, no external API calls) -----
+_EMB_MODEL = None  # SentenceTransformer instance
+_EMB_MATRIX = None  # np.ndarray [N,D]
+_EMB_TEXTS = None  # list[str]
+_T2T_PIPE = None   # transformers text2text pipeline
+_ZSC_PIPE = None   # transformers zero-shot classification pipeline
+
+def _ensure_embedder():
+    global _EMB_MODEL
+    if _EMB_MODEL is None:
+        _EMB_MODEL = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+
+def _ensure_t2t():
+    global _T2T_PIPE
+    if _T2T_PIPE is None:
+        _T2T_PIPE = pipeline('text2text-generation', model='google/flan-t5-base')
+
+def _ensure_zsc():
+    global _ZSC_PIPE
+    if _ZSC_PIPE is None:
+        _ZSC_PIPE = pipeline('zero-shot-classification', model='facebook/bart-large-mnli')
+
+def _semantic_prepare_texts(df_in: pd.DataFrame) -> list[str]:
+    texts = []
+    cols = set(df_in.columns)
+    extra = ['overall_rating','potential','sprint_speed','acceleration','dribbling','finishing','short_passing','vision']
+    for _, row in df_in.iterrows():
+        parts = [str(row.get('name',''))]
+        if 'nationality' in cols:
+            parts.append(str(row.get('nationality','')))
+        if 'positions' in cols:
+            parts.append(str(row.get('positions','')))
+        for k in extra:
+            if k in cols:
+                v = row.get(k, None)
+                if pd.notna(v):
+                    parts.append(f"{k}:{v}")
+        texts.append(' | '.join([p for p in parts if p]))
+    return texts
+
+def _semantic_build_embeddings():
+    global _EMB_MATRIX, _EMB_TEXTS
+    if _EMB_MATRIX is not None:
+        return
+    _ensure_embedder()
+    _EMB_TEXTS = _semantic_prepare_texts(raw_df)
+    vecs = _EMB_MODEL.encode(_EMB_TEXTS, batch_size=64, show_progress_bar=False, normalize_embeddings=False)
+    _EMB_MATRIX = np.array(vecs)
+
+def _embed_query(text: str) -> np.ndarray:
+    _ensure_embedder()
+    v = _EMB_MODEL.encode([text], show_progress_bar=False)[0]
+    return np.array(v)
 
 # ----- Data Preprocessing -----
 # Encode categorical columns (except original positions)
@@ -917,6 +973,225 @@ def api_stats_histogram():
         return jsonify({ 'counts': [], 'bins': [] })
     counts, bin_edges = np.histogram(ser.values, bins=bins)
     return jsonify({ 'counts': counts.tolist(), 'bins': bin_edges.tolist(), 'stat': stat })
+
+@app.route('/api/search/semantic', methods=['GET'])
+def api_search_semantic():
+    q = (request.args.get('q') or '').strip()
+    try:
+        topk = int(request.args.get('k', 20) or 20)
+    except Exception:
+        topk = 20
+    topk = max(1, min(topk, 100))
+    if not q:
+        return jsonify({ 'items': [] })
+    try:
+        _semantic_build_embeddings()
+        qv = _embed_query(q)
+    except Exception as e:
+        return jsonify({ 'error': f'Semantic embedding failed: {e}' }), 500
+    A = _EMB_MATRIX
+    denom = (np.linalg.norm(A, axis=1) * (np.linalg.norm(qv) + 1e-8) + 1e-8)
+    sims = (A @ qv) / denom
+    idx = np.argsort(-sims)[:topk]
+    rows = raw_df.iloc[idx]
+    cols = []
+    for c in ['name','nationality','positions','overall_rating','value_euro','age']:
+        if c in rows.columns:
+            cols.append(c)
+    out = rows[cols].copy() if cols else rows.copy()
+    return jsonify({ 'items': out.to_dict(orient='records') })
+
+@app.route('/api/compare/explain', methods=['POST'])
+def api_compare_explain():
+    payload = request.get_json(silent=True) or {}
+    players = payload.get('players') or []
+    metrics = payload.get('metrics') or []
+    if not players:
+        return jsonify({ 'error': 'players required' }), 400
+    snippets = []
+    for p in players:
+        r = raw_df[raw_df['name'].astype(str).str.strip().str.lower() == str(p).strip().lower()]
+        if r.empty:
+            r = raw_df[raw_df['name'].astype(str).str.lower().str.contains(str(p).lower(), na=False)]
+        if r.empty:
+            continue
+        row = r.iloc[0]
+        fields = [f"name:{row.get('name','')}", f"pos:{row.get('positions','')}"]
+        for m in metrics:
+            if m in raw_df.columns:
+                v = row.get(m, None)
+                if pd.notna(v):
+                    fields.append(f"{m}:{v}")
+        snippets.append(', '.join(fields))
+    if not snippets:
+        return jsonify({ 'error': 'no matching players' }), 404
+    prompt = (
+        "Compare the following players using the provided metrics and give a concise, professional analysis with strengths, weaknesses and team fit.\n"
+        + "\n".join(snippets)
+    )
+    try:
+        _ensure_t2t()
+        out = _T2T_PIPE(prompt, max_new_tokens=220)
+        text = out[0].get('generated_text') if isinstance(out, list) and out else str(out)
+        return jsonify({ 'analysis': text })
+    except Exception as e:
+        return jsonify({ 'error': f'Explain failed: {e}' }), 502
+
+@app.route('/api/position-classify', methods=['POST'])
+def api_position_classify():
+    payload = request.get_json(silent=True) or {}
+    name = str(payload.get('name') or '').strip()
+    if not name:
+        return jsonify({ 'error': 'name required' }), 400
+    r = raw_df[raw_df['name'].astype(str).str.strip().str.lower() == name.lower()]
+    if r.empty:
+        return jsonify({ 'error': 'player not found' }), 404
+    row = r.iloc[0]
+    labels = payload.get('labels') or ['GK','CB','LB','RB','CDM','CM','CAM','LW','RW','ST']
+    txt = (
+        f"Player {row.get('name','')} attributes: overall={row.get('overall_rating','')}, "
+        f"acceleration={row.get('acceleration','')}, sprint_speed={row.get('sprint_speed','')}, "
+        f"dribbling={row.get('dribbling','')}, finishing={row.get('finishing','')}"
+    )
+    try:
+        _ensure_zsc()
+        res = _ZSC_PIPE(txt, candidate_labels=labels)
+        return jsonify(res)
+    except Exception as e:
+        return jsonify({ 'error': f'Classification failed: {e}' }), 502
+
+@app.route('/api/qa', methods=['POST'])
+def api_qa():
+    payload = request.get_json(silent=True) or {}
+    q = str(payload.get('q') or '').strip()
+    if not q:
+        return jsonify({ 'error': 'q required' }), 400
+    # Normalize quotes
+    q_norm = q.replace('“','"').replace('”','"').replace("’","'").replace('‘',"'")
+
+    # Helper: column accessors
+    def col_exists(name):
+        return name in raw_df.columns
+    def pick_col(*names):
+        for n in names:
+            if col_exists(n):
+                return n
+        return None
+
+    col_pos = pick_col('positions_original','positions','position')
+    col_nat = pick_col('nationality_original','nationality')
+    col_age = pick_col('age')
+
+    # Very small rule-based parser for patterns like:
+    # "Top 5 ST by sprint_speed under age 22 with nationality Brazil"
+    import re
+    top_n = None
+    position_filter = None
+    nat_filter = None
+    age_max = None
+    metric = None
+
+    m = re.search(r"top\s+(\d+)", q_norm, flags=re.I)
+    if m:
+        try: top_n = int(m.group(1))
+        except: top_n = None
+
+    m = re.search(r"by\s+([a-zA-Z_]+)", q_norm, flags=re.I)
+    if m:
+        metric = m.group(1).strip()
+
+    # position tokens (e.g., ST, LW, RW, CB, GK...)
+    m = re.search(r"\b(ST|LW|RW|CF|CAM|CM|CDM|CB|LB|RB|LWB|RWB|GK)\b", q_norm, flags=re.I)
+    if m:
+        position_filter = m.group(1).upper()
+
+    m = re.search(r"under\s+age\s+(\d+)", q_norm, flags=re.I)
+    if m:
+        try: age_max = int(m.group(1))
+        except: age_max = None
+
+    m = re.search(r"nationality\s+['\"]?([A-Za-z\s]+)['\"]?", q_norm, flags=re.I)
+    if m:
+        nat_filter = m.group(1).strip()
+
+    # Fallbacks
+    if top_n is None:
+        top_n = 10
+    top_n = max(1, min(top_n, 100))
+
+    # Validate metric
+    if metric is None or metric not in raw_df.columns or not pd.api.types.is_numeric_dtype(raw_df[metric]):
+        # If metric invalid, return helpful guidance
+        return jsonify({
+            'items': [],
+            'summary': f"Could not identify a numeric metric in the query. Provide a valid numeric column in 'by <metric>'. Available numeric columns include: " + \
+                ", ".join([c for c in raw_df.columns if pd.api.types.is_numeric_dtype(raw_df[c])][:30]) + ("..." if sum(pd.api.types.is_numeric_dtype(raw_df[c]) for c in raw_df.columns) > 30 else ''),
+            'parsed': { 'top_n': top_n, 'metric': metric, 'position': position_filter, 'nationality': nat_filter, 'max_age': age_max }
+        }), 200
+
+    # Build filtered dataframe
+    data = raw_df.copy()
+    # Filter by position
+    if position_filter and col_pos and col_pos in data.columns:
+        data = data[data[col_pos].astype(str).str.upper().str.contains(position_filter, na=False)]
+    # Filter by nationality
+    if nat_filter and col_nat and col_nat in data.columns:
+        data = data[data[col_nat].astype(str).str.lower() == nat_filter.lower()]
+    # Filter by age
+    if age_max is not None and col_age and col_age in data.columns:
+        with pd.option_context('mode.use_inf_as_na', True):
+            data = data[pd.to_numeric(data[col_age], errors='coerce') <= age_max]
+
+    # Keep safe columns for output
+    out_cols = []
+    for c in ['name', pick_col('full_name','long_name'), col_nat, col_pos, 'overall_rating', 'value_euro', 'age', metric]:
+        if isinstance(c, str) and c in data.columns:
+            out_cols.append(c)
+    out_cols = list(dict.fromkeys([c for c in out_cols if c]))
+
+    # Sort by metric desc, take top_n
+    ser = pd.to_numeric(data[metric], errors='coerce')
+    data = data.loc[ser.sort_values(ascending=False).index]
+    top = data.head(top_n)
+    items = top[out_cols].to_dict(orient='records') if not top.empty and out_cols else []
+
+    # Build a short, helpful summary with local T5
+    schema = ', '.join(out_cols)
+    prompt = (
+        f"Provide a brief summary (1-2 sentences) for the selection: top {top_n} by {metric} "
+        f"with filters: position={position_filter or 'any'}, nationality={nat_filter or 'any'}, max_age={age_max or 'any'}. "
+        f"Columns in table: {schema}."
+    )
+    summary = ''
+    try:
+        _ensure_t2t()
+        out = _T2T_PIPE(prompt, max_new_tokens=90)
+        summary = out[0].get('generated_text') if isinstance(out, list) and out else ''
+    except Exception:
+        summary = ''
+
+    return jsonify({
+        'items': items,
+        'metric': metric,
+        'top_n': top_n,
+        'filters': { 'position': position_filter, 'nationality': nat_filter, 'max_age': age_max },
+        'summary': summary
+    })
+
+@app.route('/debug/routes', methods=['GET'])
+def debug_routes():
+    try:
+        rules = []
+        for r in app.url_map.iter_rules():
+            rules.append({
+                'rule': str(r),
+                'endpoint': r.endpoint,
+                'methods': sorted([m for m in r.methods if m not in ('HEAD','OPTIONS')])
+            })
+        rules.sort(key=lambda x: x['rule'])
+        return jsonify({ 'routes': rules })
+    except Exception as e:
+        return jsonify({ 'error': f'Failed to list routes: {e}' }), 500
 
 @app.route('/recommend', methods=['GET'])
 def recommend():

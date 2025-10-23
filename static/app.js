@@ -54,6 +54,7 @@ const bpPrev = document.getElementById('bp-prev');
 const bpNext = document.getElementById('bp-next');
 const bpInfo = document.getElementById('bp-info');
 const bpExport = document.getElementById('bp-export');
+const bpSemantic = document.getElementById('bp-semantic');
 // Player detail modal
 const pdModal = document.getElementById('player-detail');
 const pdTitle = document.getElementById('pd-title');
@@ -92,6 +93,48 @@ async function fetchPlayers(query) {
     // Ignore abort errors
   }
 
+// ----- Dataset Q&A -----
+const qaAsk = document.getElementById('qa-ask');
+const qaQ = document.getElementById('qa-q');
+const qaErr = document.getElementById('qa-error');
+const qaOut = document.getElementById('qa-out');
+if (qaAsk) qaAsk.addEventListener('click', async () => {
+  if (qaErr) qaErr.hidden = true;
+  if (qaOut) { qaOut.hidden = true; qaOut.textContent = ''; }
+  const q = (qaQ?.value || '').trim();
+  if (!q) { if (qaErr) { qaErr.textContent = 'Enter a question.'; qaErr.hidden = false; } return; }
+  try {
+    const res = await fetch('/api/qa', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || 'QA failed');
+    const items = Array.isArray(data.items) ? data.items : [];
+    const summary = data.summary || '';
+    if (items.length) {
+      // Build a small table
+      const cols = Object.keys(items[0]);
+      let html = '<table class="compact"><thead><tr>' + cols.map(c => `<th>${escapeHtml(String(c))}</th>`).join('') + '</tr></thead><tbody>';
+      items.forEach(row => {
+        html += '<tr>' + cols.map(c => `<td>${escapeHtml(String(row[c] ?? ''))}</td>`).join('') + '</tr>';
+      });
+      html += '</tbody></table>';
+      if (summary) html += `\n\n<div class="muted" style="margin-top:.5rem;">${escapeHtml(summary)}</div>`;
+      qaOut.innerHTML = html;
+      qaOut.hidden = false;
+    } else if (summary) {
+      qaOut.textContent = summary;
+      qaOut.hidden = false;
+    } else {
+      qaOut.textContent = 'No results.';
+      qaOut.hidden = false;
+    }
+  } catch (e) {
+    if (qaErr) { qaErr.textContent = e.message; qaErr.hidden = false; }
+  }
+});
+
 function showPlayerDetail(name, record) {
   if (!pdModal || !pdBody || !pdTitle) return;
   pdTitle.textContent = name || 'Player Detail';
@@ -112,6 +155,25 @@ function closePlayerDetail() {
 
 if (pdClose) pdClose.addEventListener('click', closePlayerDetail);
 if (pdModal) pdModal.addEventListener('click', (e) => { if (e.target === pdModal) closePlayerDetail(); });
+// Position Classify in modal
+const pdClassify = document.getElementById('pd-classify');
+const pdClassifyErr = document.getElementById('pd-classify-error');
+if (pdClassify) pdClassify.addEventListener('click', async () => {
+  const name = pdTitle?.textContent || '';
+  if (!name) return;
+  if (pdClassifyErr) pdClassifyErr.hidden = true;
+  try {
+    const res = await fetch('/api/position-classify', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || 'Classify failed');
+    alert(`Predicted role: ${JSON.stringify(data)}`);
+  } catch (e) {
+    if (pdClassifyErr) { pdClassifyErr.textContent = e.message; pdClassifyErr.hidden = false; }
+  }
+});
 
 // ----- Top Players wiring -----
 async function loadTopStats() {
@@ -168,6 +230,52 @@ if (tsApply) tsApply.addEventListener('click', () => loadTopStats());
 // initial load for default metric
 if (tsForm) loadTopStats();
 }
+
+// ----- Semantic Search -----
+if (bpSemantic) bpSemantic.addEventListener('click', async () => {
+  const q = (bpQ?.value || '').trim();
+  if (!q) { alert('Enter a search query first.'); return; }
+  try {
+    const res = await fetch(`/api/search/semantic?q=${encodeURIComponent(q)}&k=${encodeURIComponent(bpPageSize?.value || '20')}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || 'Semantic search failed');
+    if (bpErr) bpErr.hidden = true;
+    if (bpTbody) bpTbody.innerHTML = '';
+    const items = Array.isArray(data.items) ? data.items : [];
+    items.forEach(row => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><button class="link" data-pname="${escapeHtml(String(row.name || ''))}">${escapeHtml(String(row.name || ''))}</button></td>
+        <td>${escapeHtml(String(row.nationality || ''))}</td>
+        <td>${escapeHtml(String(row.overall_rating ?? ''))}</td>
+        <td>${escapeHtml(String(row.age ?? ''))}</td>
+        <td>${escapeHtml(String(row.value_euro ?? ''))}</td>
+        <td>${escapeHtml(String(row.positions || ''))}</td>
+      `;
+      bpTbody?.appendChild(tr);
+    });
+    if (bpTable) bpTable.hidden = items.length === 0;
+    if (bpPager) bpPager.hidden = true;
+    if (bpTbody) {
+      bpTbody.querySelectorAll('button.link[data-pname]').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const pname = e.currentTarget.getAttribute('data-pname') || '';
+          if (!pname) return;
+          try {
+            const res = await fetch(`/api/players/${encodeURIComponent(pname)}`);
+            const data = await res.json();
+            if (!res.ok) throw new Error(data?.error || 'Failed to load player');
+            showPlayerDetail(pname, data);
+          } catch (err) {
+            alert(err.message || 'Failed to load player');
+          }
+        });
+      });
+    }
+  } catch (e) {
+    if (bpErr) { bpErr.textContent = e.message; bpErr.hidden = false; }
+  }
+});
 
 playerInput.addEventListener('input', (e) => {
   const q = e.target.value.trim();
@@ -681,6 +789,29 @@ async function loadCompare() {
   }
 }
 if (cpApply) cpApply.addEventListener('click', () => loadCompare());
+
+// Explain Comparison (LLM)
+const cpExplain = document.getElementById('cp-explain');
+const cpExplainErr = document.getElementById('cp-explain-error');
+const cpExplainOut = document.getElementById('cp-explain-out');
+if (cpExplain) cpExplain.addEventListener('click', async () => {
+  if (cpExplainErr) cpExplainErr.hidden = true;
+  if (cpExplainOut) { cpExplainOut.hidden = true; cpExplainOut.textContent = ''; }
+  const players = (cpPlayers?.value || '').split(',').map(s => s.trim()).filter(Boolean);
+  const metrics = (cpMetrics?.value || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (!players.length) { if (cpExplainErr) { cpExplainErr.textContent = 'Enter at least one player.'; cpExplainErr.hidden = false; } return; }
+  try {
+    const res = await fetch('/api/compare/explain', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ players, metrics })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || 'Explain failed');
+    if (cpExplainOut) { cpExplainOut.textContent = data.analysis || ''; cpExplainOut.hidden = false; }
+  } catch (e) {
+    if (cpExplainErr) { cpExplainErr.textContent = e.message; cpExplainErr.hidden = false; }
+  }
+});
 
 // ----- Anomalies -----
 const anForm = document.getElementById('an-form');
