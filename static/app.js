@@ -1,3 +1,118 @@
+// ----- Auth elements (declare early) -----
+const authUserBox = document.getElementById('auth-user');
+const alIdent = document.getElementById('al-ident');
+const alPass = document.getElementById('al-pass');
+const alBtn = document.getElementById('al-btn');
+// Navbar elements
+const navUser = document.getElementById('nav-user');
+const navLogout = document.getElementById('nav-logout');
+const alErr = document.getElementById('al-err');
+const asUser = document.getElementById('as-user');
+const asEmail = document.getElementById('as-email');
+const asPass = document.getElementById('as-pass');
+const asBtn = document.getElementById('as-btn');
+const asErr = document.getElementById('as-err');
+const afEmail = document.getElementById('af-email');
+const afBtn = document.getElementById('af-btn');
+const afOut = document.getElementById('af-out');
+const afErr = document.getElementById('af-err');
+const arToken = document.getElementById('ar-token');
+const arPass = document.getElementById('ar-pass');
+const arBtn = document.getElementById('ar-btn');
+const arErr = document.getElementById('ar-err');
+
+// ----- Auth wiring -----
+function setProtectedVisible(isAuthed) {
+  document.querySelectorAll('[data-protected="1"]').forEach(el => { el.style.display = ''; });
+  if (navLogout) navLogout.hidden = !isAuthed;
+}
+
+async function refreshMe() {
+  try {
+    const res = await fetch('/auth/me');
+    const data = await res.json().catch(() => ({}));
+    const user = data?.user || null;
+    if (user) {
+      if (navUser) { navUser.textContent = `${user.username} (${user.email})`; }
+      if (authUserBox) { authUserBox.textContent = `Logged in as ${user.username} (${user.email})`; authUserBox.hidden = false; }
+      setProtectedVisible(true);
+    } else {
+      if (navUser) { navUser.textContent = ''; }
+      if (authUserBox) { authUserBox.textContent = ''; authUserBox.hidden = true; }
+      setProtectedVisible(false); // still shows sections by design
+    }
+  } catch {
+    setProtectedVisible(false);
+  }
+}
+
+if (alBtn) alBtn.addEventListener('click', async () => {
+  if (alErr) alErr.hidden = true;
+  try {
+    const res = await fetch('/auth/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username_or_email: alIdent?.value || '', password: alPass?.value || '' })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || 'Login failed');
+    await refreshMe();
+  } catch (e) {
+    if (alErr) { alErr.textContent = e.message; alErr.hidden = false; }
+  }
+});
+
+if (navLogout) navLogout.addEventListener('click', async () => {
+  try { await fetch('/auth/logout', { method: 'POST' }); } catch {}
+  window.location.href = '/auth';
+});
+
+if (asBtn) asBtn.addEventListener('click', async () => {
+  if (asErr) asErr.hidden = true;
+  try {
+    const res = await fetch('/auth/signup', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: asUser?.value || '', email: asEmail?.value || '', password: asPass?.value || '' })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || 'Signup failed');
+    await refreshMe();
+  } catch (e) {
+    if (asErr) { asErr.textContent = e.message; asErr.hidden = false; }
+  }
+});
+
+if (afBtn) afBtn.addEventListener('click', async () => {
+  if (afErr) afErr.hidden = true; if (afOut) { afOut.hidden = true; afOut.textContent = ''; }
+  try {
+    const res = await fetch('/auth/forgot', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: afEmail?.value || '' })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || 'Forgot failed');
+    if (afOut) { afOut.textContent = (data.message || 'If the email exists, a token has been sent.') + (data.token ? ` (dev token: ${data.token})` : ''); afOut.hidden = false; }
+  } catch (e) {
+    if (afErr) { afErr.textContent = e.message; afErr.hidden = false; }
+  }
+});
+
+if (arBtn) arBtn.addEventListener('click', async () => {
+  if (arErr) arErr.hidden = true;
+  try {
+    const res = await fetch('/auth/reset', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: arToken?.value || '', new_password: arPass?.value || '' })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || 'Reset failed');
+    alert('Password reset successful. You can now login.');
+  } catch (e) {
+    if (arErr) { arErr.textContent = e.message; arErr.hidden = false; }
+  }
+});
+
+// Initialize session visibility
+refreshMe();
 const playerInput = document.getElementById('player');
 const playerList = document.getElementById('player-list');
 const positionInput = document.getElementById('position');
@@ -32,6 +147,7 @@ const translateBtn = document.getElementById('translate-btn');
 const scoutTransErr = document.getElementById('scout-trans-error');
 const scoutTranslation = document.getElementById('scout-translation');
 const scoutProvider = document.getElementById('scout-provider');
+// (auth elements declared at top)
 // Browse Players elements
 const bpForm = document.getElementById('browse-form');
 const bpQ = document.getElementById('bp-q');

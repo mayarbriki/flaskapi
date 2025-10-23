@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, session, redirect, url_for
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 from sklearn.metrics.pairwise import cosine_similarity
@@ -14,8 +14,41 @@ import urllib.error
 import html
 from sentence_transformers import SentenceTransformer  # local embeddings
 from transformers import pipeline  # local zero-shot and text2text
+import sqlite3
+from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime, timedelta
+import secrets
 
 app = Flask(__name__)
+app.secret_key = os.environ.get('APP_SECRET_KEY', 'dev-secret-key')
+
+# ----- User/Auth Storage (SQLite) -----
+DB_PATH = os.path.join(os.path.dirname(__file__), 'app.db')
+
+def get_db():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE,
+            email TEXT UNIQUE,
+            password_hash TEXT NOT NULL,
+            reset_token TEXT,
+            reset_expires TEXT
+        );
+        """
+    )
+    conn.commit()
+    conn.close()
+
+init_db()
 
 # Load dataset
 raw_df = pd.read_csv("fifa_players.csv")
@@ -490,8 +523,18 @@ def translate_text_ai(text_to_translate, target_language):
 # ----- API Endpoint -----
 @app.route('/', methods=['GET'])
 def index():
-    """Serve a simple frontend UI."""
+    """Main app UI (requires login)."""
+    if not session.get('uid'):
+        return redirect(url_for('auth_page'))
     return render_template('index.html')
+
+@app.route('/auth', methods=['GET'])
+def auth_page():
+    """Landing page with login/signup."""
+    # If already logged in, go to app
+    if session.get('uid'):
+        return redirect(url_for('index'))
+    return render_template('auth.html')
 
 @app.route('/players', methods=['GET'])
 def players():
@@ -1177,6 +1220,124 @@ def api_qa():
         'filters': { 'position': position_filter, 'nationality': nat_filter, 'max_age': age_max },
         'summary': summary
     })
+
+# ----- Auth Endpoints -----
+def _get_user_by(field, value):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute(f"SELECT * FROM users WHERE {field} = ?", (value,))
+    row = cur.fetchone()
+    conn.close()
+    return row
+
+def _create_user(username, email, password):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)",
+                (username, email, generate_password_hash(password)))
+    conn.commit(); uid = cur.lastrowid
+    conn.close()
+    return uid
+
+def _set_reset_token(user_id):
+    token = secrets.token_urlsafe(24)
+    expires = (datetime.utcnow() + timedelta(minutes=30)).isoformat()
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("UPDATE users SET reset_token=?, reset_expires=? WHERE id=?", (token, expires, user_id))
+    conn.commit(); conn.close()
+    return token, expires
+
+def _get_user_by_token(token):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("SELECT * FROM users WHERE reset_token=?", (token,))
+    row = cur.fetchone(); conn.close()
+    return row
+
+@app.route('/auth/signup', methods=['POST'])
+def auth_signup():
+    payload = request.get_json(silent=True) or {}
+    username = str(payload.get('username') or '').strip()
+    email = str(payload.get('email') or '').strip().lower()
+    password = str(payload.get('password') or '')
+    if not username or not email or not password:
+        return jsonify({ 'error': 'username, email, password required' }), 400
+    if _get_user_by('username', username) or _get_user_by('email', email):
+        return jsonify({ 'error': 'user already exists' }), 409
+    uid = _create_user(username, email, password)
+    session['uid'] = uid
+    return jsonify({ 'ok': True, 'user': { 'id': uid, 'username': username, 'email': email } })
+
+@app.route('/auth/login', methods=['POST'])
+def auth_login():
+    payload = request.get_json(silent=True) or {}
+    ident = str(payload.get('username_or_email') or '').strip()
+    password = str(payload.get('password') or '')
+    if not ident or not password:
+        return jsonify({ 'error': 'username_or_email and password required' }), 400
+    row = _get_user_by('username', ident) or _get_user_by('email', ident.lower())
+    if not row or not check_password_hash(row['password_hash'], password):
+        return jsonify({ 'error': 'invalid credentials' }), 401
+    session['uid'] = row['id']
+    return jsonify({ 'ok': True, 'user': { 'id': row['id'], 'username': row['username'], 'email': row['email'] } })
+
+@app.route('/auth/logout', methods=['POST'])
+def auth_logout():
+    session.pop('uid', None)
+    return jsonify({ 'ok': True })
+
+@app.route('/auth/me', methods=['GET'])
+def auth_me():
+    uid = session.get('uid')
+    if not uid:
+        return jsonify({ 'user': None })
+    row = _get_user_by('id', uid)
+    if not row:
+        return jsonify({ 'user': None })
+    return jsonify({ 'user': { 'id': row['id'], 'username': row['username'], 'email': row['email'] } })
+
+@app.route('/auth/forgot', methods=['POST'])
+def auth_forgot():
+    payload = request.get_json(silent=True) or {}
+    email = str(payload.get('email') or '').strip().lower()
+    if not email:
+        return jsonify({ 'error': 'email required' }), 400
+    row = _get_user_by('email', email)
+    # Do not reveal existence
+    if row:
+        token, expires = _set_reset_token(row['id'])
+        # Build AI message locally
+        try:
+            _ensure_t2t()
+            prompt = f"Compose a short, friendly password reset message including this token: {token}. Keep under 2 sentences."
+            out = _T2T_PIPE(prompt, max_new_tokens=60)
+            msg = out[0].get('generated_text') if isinstance(out, list) and out else f"Your reset token is: {token}"
+        except Exception:
+            msg = f"Your reset token is: {token}"
+        # In real app you'd email this; we return it for dev
+        return jsonify({ 'ok': True, 'message': msg, 'token': token, 'expires': expires })
+    return jsonify({ 'ok': True })
+
+@app.route('/auth/reset', methods=['POST'])
+def auth_reset():
+    payload = request.get_json(silent=True) or {}
+    token = str(payload.get('token') or '').strip()
+    new_password = str(payload.get('new_password') or '')
+    if not token or not new_password:
+        return jsonify({ 'error': 'token and new_password required' }), 400
+    row = _get_user_by_token(token)
+    if not row:
+        return jsonify({ 'error': 'invalid token' }), 400
+    # Check expiry
+    try:
+        exp = datetime.fromisoformat(row['reset_expires']) if row['reset_expires'] else None
+        if exp and exp < datetime.utcnow():
+            return jsonify({ 'error': 'token expired' }), 400
+    except Exception:
+        pass
+    # Update password and clear token
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("UPDATE users SET password_hash=?, reset_token=NULL, reset_expires=NULL WHERE id=?",
+                (generate_password_hash(new_password), row['id']))
+    conn.commit(); conn.close()
+    return jsonify({ 'ok': True })
 
 @app.route('/debug/routes', methods=['GET'])
 def debug_routes():

@@ -31,7 +31,13 @@
   <button class="sidebar-toggle" id="sidebarToggle">☰</button>
 
   <div class="container">
-    <h1>FIFA Player Recommender</h1>
+    <div class="topbar card" style="display:flex;justify-content:space-between;align-items:center;gap:1rem;">
+      <h1 style="margin:0;">FIFA Player Recommender</h1>
+      <div>
+        <span id="nav-user"></span>
+        <button id="nav-logout" type="button">Logout</button>
+      </div>
+    </div>
     <form id="search-form" class="card" onsubmit="return false;">
       <div class="field">
         <label for="player">Player</label>
@@ -66,7 +72,7 @@
       </table>
     </div>
 
-    <div id="browse" class="card">
+    <div id="browse" class="card" data-protected="1">
       <h2>Browse Players</h2>
       <form id="browse-form" onsubmit="return false;">
         <div class="grid grid-3">
@@ -157,7 +163,7 @@
       </div>
     </div>
 
-    <div id="topstats" class="card">
+    <div id="topstats" class="card" data-protected="1">
       <h2>Top Players</h2>
       <form id="top-form" onsubmit="return false;">
         <div class="grid grid-3">
@@ -208,7 +214,7 @@
       </table>
     </div>
 
-    <div id="compare" class="card">
+    <div id="compare" class="card" data-protected="1">
       <h2>Compare Players</h2>
       <form id="compare-form" onsubmit="return false;">
         <div class="grid grid-3">
@@ -241,7 +247,7 @@
       <pre id="cp-explain-out" class="report" hidden></pre>
     </div>
 
-    <div id="anomalies" class="card">
+    <div id="anomalies" class="card" data-protected="1">
       <h2>Anomaly Detection</h2>
       <form id="an-form" onsubmit="return false;">
         <div class="grid grid-3">
@@ -279,7 +285,7 @@
       </table>
     </div>
 
-    <div id="histogram" class="card">
+    <div id="histogram" class="card" data-protected="1">
       <h2>Histogram</h2>
       <form id="hg-form" onsubmit="return false;">
         <div class="grid grid-3">
@@ -311,7 +317,7 @@
       <canvas id="hg-canvas" width="800" height="300"></canvas>
     </div>
 
-    <div id="scout" class="card">
+    <div id="scout" class="card" data-protected="1">
       <h2>AI Scout Report</h2>
       <form id="scout-form" onsubmit="return false;">
         <div class="field">
@@ -346,7 +352,7 @@
       </form>
     </div>
 
-    <div id="predict" class="card">
+    <div id="predict" class="card" data-protected="1">
       <h2>Predict Overall</h2>
       <form id="predict-form" onsubmit="return false;">
         <div class="grid">

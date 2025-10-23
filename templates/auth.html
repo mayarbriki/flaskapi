@@ -1,0 +1,111 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sign in • FIFA App</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <style>
+    .auth-wrap{max-width:960px;margin:2rem auto;padding:1rem}
+    .auth-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+    @media (max-width: 860px){.auth-grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="auth-wrap">
+    <h1>Welcome</h1>
+    <p>Please sign in or create an account to access the application.</p>
+
+    <div id="auth" class="card">
+      <div class="auth-grid">
+        <form id="auth-login" onsubmit="return false;" style="min-width:260px;">
+          <h3>Login</h3>
+          <div class="field"><label for="al-ident">Username or Email</label><input id="al-ident" /></div>
+          <div class="field"><label for="al-pass">Password</label><input id="al-pass" type="password" /></div>
+          <div class="actions"><button id="al-btn" type="button">Login</button></div>
+          <div id="al-err" class="error" hidden></div>
+        </form>
+
+        <form id="auth-signup" onsubmit="return false;" style="min-width:260px;">
+          <h3>Sign Up</h3>
+          <div class="field"><label for="as-user">Username</label><input id="as-user" /></div>
+          <div class="field"><label for="as-email">Email</label><input id="as-email" type="email" /></div>
+          <div class="field"><label for="as-pass">Password</label><input id="as-pass" type="password" /></div>
+          <div class="actions"><button id="as-btn" type="button">Create Account</button></div>
+          <div id="as-err" class="error" hidden></div>
+        </form>
+      </div>
+
+      <div class="auth-grid">
+        <form id="auth-forgot" onsubmit="return false;" style="min-width:260px;">
+          <h3>Forgot Password</h3>
+          <div class="field"><label for="af-email">Email</label><input id="af-email" type="email" /></div>
+          <div class="actions"><button id="af-btn" type="button">Send Token</button></div>
+          <div id="af-out" class="success" hidden></div>
+          <div id="af-err" class="error" hidden></div>
+        </form>
+
+        <form id="auth-reset" onsubmit="return false;" style="min-width:260px;">
+          <h3>Reset Password</h3>
+          <div class="field"><label for="ar-token">Reset Token</label><input id="ar-token" /></div>
+          <div class="field"><label for="ar-pass">New Password</label><input id="ar-pass" type="password" /></div>
+          <div class="actions"><button id="ar-btn" type="button">Reset Password</button></div>
+          <div id="ar-err" class="error" hidden></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  async function doLogin(){
+    const ident = document.getElementById('al-ident').value;
+    const pass = document.getElementById('al-pass').value;
+    const err = document.getElementById('al-err'); err.hidden = true;
+    try{
+      const res = await fetch('/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username_or_email: ident, password: pass }) });
+      const data = await res.json();
+      if(!res.ok) throw new Error(data?.error || 'Login failed');
+      window.location.href = '/';
+    }catch(e){ err.textContent = e.message; err.hidden = false; }
+  }
+  async function doSignup(){
+    const user = document.getElementById('as-user').value;
+    const email = document.getElementById('as-email').value;
+    const pass = document.getElementById('as-pass').value;
+    const err = document.getElementById('as-err'); err.hidden = true;
+    try{
+      const res = await fetch('/auth/signup', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username:user, email, password:pass }) });
+      const data = await res.json();
+      if(!res.ok) throw new Error(data?.error || 'Signup failed');
+      window.location.href = '/';
+    }catch(e){ err.textContent = e.message; err.hidden = false; }
+  }
+  async function doForgot(){
+    const email = document.getElementById('af-email').value;
+    const out = document.getElementById('af-out'); out.hidden = true; out.textContent='';
+    const err = document.getElementById('af-err'); err.hidden = true;
+    try{
+      const res = await fetch('/auth/forgot', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email }) });
+      const data = await res.json();
+      if(!res.ok) throw new Error(data?.error || 'Forgot failed');
+      out.textContent = (data.message || 'If the email exists, a token has been sent.') + (data.token?` (dev token: ${data.token})`: ''); out.hidden = false;
+    }catch(e){ err.textContent = e.message; err.hidden = false; }
+  }
+  async function doReset(){
+    const token = document.getElementById('ar-token').value;
+    const pass = document.getElementById('ar-pass').value;
+    const err = document.getElementById('ar-err'); err.hidden = true;
+    try{
+      const res = await fetch('/auth/reset', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token, new_password: pass }) });
+      const data = await res.json();
+      if(!res.ok) throw new Error(data?.error || 'Reset failed');
+      alert('Password reset successful. You can now login.');
+    }catch(e){ err.textContent = e.message; err.hidden = false; }
+  }
+  document.getElementById('al-btn').addEventListener('click', doLogin);
+  document.getElementById('as-btn').addEventListener('click', doSignup);
+  document.getElementById('af-btn').addEventListener('click', doForgot);
+  document.getElementById('ar-btn').addEventListener('click', doReset);
+  </script>
+</body>
+</html>
