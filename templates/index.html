@@ -12,9 +12,15 @@
     <div class="sidebar-header">
       <h2>FIFA Tools</h2>
     </div>
+
     <nav class="sidebar-nav">
       <a href="#search" onclick="scrollToSection('search-form')">Player Search</a>
       <a href="#recommendations" onclick="scrollToSection('results')">Recommendations</a>
+      <a href="#browse" onclick="scrollToSection('browse')">Browse Players</a>
+      <a href="#topstats" onclick="scrollToSection('topstats')">Top Players</a>
+      <a href="#compare" onclick="scrollToSection('compare')">Compare</a>
+      <a href="#anomalies" onclick="scrollToSection('anomalies')">Anomalies</a>
+      <a href="#histogram" onclick="scrollToSection('histogram')">Histogram</a>
       <a href="#scout" onclick="scrollToSection('scout')">AI Scout Report</a>
       <a href="#predict" onclick="scrollToSection('predict')">Predict Overall</a>
       <a href="#about" onclick="showAbout()">About</a>
@@ -58,6 +64,245 @@
         </thead>
         <tbody></tbody>
       </table>
+    </div>
+
+    <div id="browse" class="card">
+      <h2>Browse Players</h2>
+      <form id="browse-form" onsubmit="return false;">
+        <div class="grid grid-3">
+          <div class="field">
+            <label for="bp-q">Search</label>
+            <input id="bp-q" type="text" placeholder="Name contains..." />
+          </div>
+          <div class="field">
+            <label for="bp-nationality">Nationality</label>
+            <input id="bp-nationality" list="nationality-list" placeholder="Country" />
+          </div>
+          <div class="field">
+            <label for="bp-position">Position</label>
+            <input id="bp-position" placeholder="e.g., ST, LW" />
+          </div>
+        </div>
+        <div class="grid grid-3">
+          <div class="field">
+            <label>Overall</label>
+            <div class="grid">
+              <input id="bp-min-overall" type="number" placeholder="Min" min="1" max="99" />
+              <input id="bp-max-overall" type="number" placeholder="Max" min="1" max="99" />
+            </div>
+          </div>
+          <div class="field">
+            <label>Age</label>
+            <div class="grid">
+              <input id="bp-min-age" type="number" placeholder="Min" min="15" max="50" />
+              <input id="bp-max-age" type="number" placeholder="Max" min="15" max="50" />
+            </div>
+          </div>
+          <div class="field">
+            <label>Value (€)</label>
+            <div class="grid">
+              <input id="bp-min-value" type="number" placeholder="Min" min="0" step="100000" />
+              <input id="bp-max-value" type="number" placeholder="Max" min="0" step="100000" />
+            </div>
+          </div>
+        </div>
+        <div class="grid grid-3">
+          <div class="field">
+            <label for="bp-sort">Sort</label>
+            <select id="bp-sort">
+              <option value="name">Name ↑</option>
+              <option value="-name">Name ↓</option>
+              <option value="overall_rating">Overall ↑</option>
+              <option value="-overall_rating">Overall ↓</option>
+              <option value="value_euro">Value ↑</option>
+              <option value="-value_euro">Value ↓</option>
+              <option value="age">Age ↑</option>
+              <option value="-age">Age ↓</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="bp-page-size">Page Size</label>
+            <select id="bp-page-size">
+              <option>10</option>
+              <option selected>20</option>
+              <option>50</option>
+              <option>100</option>
+            </select>
+          </div>
+          <div class="actions" style="align-self:end;">
+            <button id="bp-apply" type="button">Apply Filters</button>
+            <button id="bp-export" type="button">Export CSV</button>
+          </div>
+        </div>
+      </form>
+      <div id="bp-error" class="error" hidden></div>
+      <table id="bp-table" hidden>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Nationality</th>
+            <th>Overall</th>
+            <th>Age</th>
+            <th>Value (€)</th>
+            <th>Positions</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div id="bp-pager" class="pager" hidden>
+        <button id="bp-prev" type="button">Prev</button>
+        <span id="bp-info"></span>
+        <button id="bp-next" type="button">Next</button>
+      </div>
+    </div>
+
+    <div id="topstats" class="card">
+      <h2>Top Players</h2>
+      <form id="top-form" onsubmit="return false;">
+        <div class="grid grid-3">
+          <div class="field">
+            <label for="ts-stat">Metric</label>
+            <select id="ts-stat">
+              <option value="overall_rating">overall_rating</option>
+              <option value="potential">potential</option>
+              <option value="value_euro">value_euro</option>
+              <option value="wage_euro">wage_euro</option>
+              <option value="sprint_speed">sprint_speed</option>
+              <option value="acceleration">acceleration</option>
+              <option value="dribbling">dribbling</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="ts-n">Top N</label>
+            <input id="ts-n" type="number" min="1" max="100" value="10" />
+          </div>
+          <div class="field">
+            <label for="ts-position">Position</label>
+            <input id="ts-position" placeholder="e.g., ST, RW" />
+          </div>
+        </div>
+        <div class="grid grid-3">
+          <div class="field">
+            <label for="ts-nationality">Nationality</label>
+            <input id="ts-nationality" list="nationality-list" placeholder="Country" />
+          </div>
+          <div class="actions" style="align-self:end;">
+            <button id="ts-apply" type="button">Show Top</button>
+          </div>
+        </div>
+      </form>
+      <div id="ts-error" class="error" hidden></div>
+      <table id="ts-table" hidden>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Nationality</th>
+            <th>Positions</th>
+            <th>Overall</th>
+            <th>Value (€)</th>
+            <th>Metric Value</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div id="compare" class="card">
+      <h2>Compare Players</h2>
+      <form id="compare-form" onsubmit="return false;">
+        <div class="grid grid-3">
+          <div class="field">
+            <label for="cp-players">Players</label>
+            <input id="cp-players" placeholder="Comma-separated names" />
+          </div>
+          <div class="field">
+            <label for="cp-metrics">Metrics</label>
+            <input id="cp-metrics" placeholder="e.g., overall_rating,potential,sprint_speed" />
+          </div>
+          <div class="actions" style="align-self:end;">
+            <button id="cp-apply" type="button">Compare</button>
+          </div>
+        </div>
+      </form>
+      <div id="cp-error" class="error" hidden></div>
+      <table id="cp-table" hidden>
+        <thead>
+          <tr id="cp-head-row">
+            <th>Name</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div id="anomalies" class="card">
+      <h2>Anomaly Detection</h2>
+      <form id="an-form" onsubmit="return false;">
+        <div class="grid grid-3">
+          <div class="field">
+            <label for="an-n">Top N</label>
+            <input id="an-n" type="number" min="1" max="200" value="20" />
+          </div>
+          <div class="field">
+            <label for="an-position">Position</label>
+            <input id="an-position" placeholder="e.g., ST, CB" />
+          </div>
+          <div class="field">
+            <label for="an-nationality">Nationality</label>
+            <input id="an-nationality" list="nationality-list" placeholder="Country" />
+          </div>
+        </div>
+        <div class="actions">
+          <button id="an-apply" type="button">Detect Anomalies</button>
+        </div>
+      </form>
+      <div id="an-error" class="error" hidden></div>
+      <table id="an-table" hidden>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Nationality</th>
+            <th>Positions</th>
+            <th>Overall</th>
+            <th>Value (€)</th>
+            <th>Age</th>
+            <th>Anomaly Score</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div id="histogram" class="card">
+      <h2>Histogram</h2>
+      <form id="hg-form" onsubmit="return false;">
+        <div class="grid grid-3">
+          <div class="field">
+            <label for="hg-stat">Metric</label>
+            <input id="hg-stat" value="overall_rating" />
+          </div>
+          <div class="field">
+            <label for="hg-bins">Bins</label>
+            <input id="hg-bins" type="number" min="2" max="200" value="20" />
+          </div>
+          <div class="field">
+            <label for="hg-position">Position</label>
+            <input id="hg-position" placeholder="e.g., ST" />
+          </div>
+        </div>
+        <div class="grid grid-3">
+          <div class="field">
+            <label for="hg-nationality">Nationality</label>
+            <input id="hg-nationality" list="nationality-list" placeholder="Country" />
+          </div>
+          <div class="actions" style="align-self:end;">
+            <button id="hg-apply" type="button">Show Histogram</button>
+          </div>
+        </div>
+      </form>
+      <div id="hg-error" class="error" hidden></div>
+      <pre id="hg-output" class="report" hidden></pre>
+      <canvas id="hg-canvas" width="800" height="300"></canvas>
     </div>
 
     <div id="scout" class="card">
@@ -166,6 +411,17 @@
         <div id="predict-error" class="error" hidden></div>
         <div id="predict-output" class="success" hidden></div>
       </form>
+    </div>
+  </div>
+
+  <!-- Player Detail Modal -->
+  <div id="player-detail" class="modal" hidden>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="pd-title">Player Detail</h3>
+        <button id="pd-close" type="button" class="close">×</button>
+      </div>
+      <div id="pd-body" class="modal-body"></div>
     </div>
   </div>
 
