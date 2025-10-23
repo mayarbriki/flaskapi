@@ -38,38 +38,39 @@
         <button id="nav-logout" type="button">Logout</button>
       </div>
     </div>
-    <form id="search-form" class="card" onsubmit="return false;">
-      <div class="field">
-        <label for="player">Player</label>
-        <input id="player" name="player" type="text" placeholder="Start typing a player name..." list="player-list" autocomplete="off" />
-        <datalist id="player-list"></datalist>
-      </div>
-
-      <div class="field">
-        <label for="position">Position (optional)</label>
-        <input id="position" name="position" type="text" placeholder="e.g., ST, LW, RW" />
-      </div>
-
-      <div class="actions">
-        <button id="recommend-btn" type="button">Get Recommendations</button>
-      </div>
-    </form>
-
-    <div id="results" class="card">
+    <div id="recommendations" class="card" data-protected="1">
       <h2>Recommendations</h2>
-      <div id="error" class="error" hidden></div>
-      <table id="results-table" hidden>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Nationality</th>
-            <th>Overall</th>
-            <th>Value (€)</th>
-            <th>Positions</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+      <form id="search-form" onsubmit="return false;">
+        <div class="grid grid-3">
+          <div class="field">
+            <label for="player">Player</label>
+            <input id="player" name="player" type="text" placeholder="Start typing a player name..." list="player-list" autocomplete="off" />
+            <datalist id="player-list"></datalist>
+          </div>
+          <div class="field">
+            <label for="position">Position (optional)</label>
+            <input id="position" name="position" type="text" placeholder="e.g., ST, LW, RW" />
+          </div>
+          <div class="actions" style="align-self:end;">
+            <button id="recommend-btn" type="button">Get Recommendations</button>
+          </div>
+        </div>
+      </form>
+      <div id="results">
+        <div id="error" class="error" hidden></div>
+        <table id="results-table" hidden>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Nationality</th>
+              <th>Overall</th>
+              <th>Value (€)</th>
+              <th>Positions</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </div>
 
     <div id="browse" class="card" data-protected="1">
