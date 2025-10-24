@@ -745,12 +745,18 @@ function closeSidebar() {
 }
 
 function scrollToSection(elementId) {
+  const allSections = document.querySelectorAll('.card');
+  allSections.forEach(sec => sec.style.display = 'none'); // hide all
+
   const element = document.getElementById(elementId);
   if (element) {
+    element.style.display = ''; // show selected section
     element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    closeSidebar();
   }
+
+  closeSidebar();
 }
+
 
 function showAbout() {
   alert('FIFA Player Recommender\n\nFind similar players and predict overall ratings using machine learning.\n\nFeatures:\n• Player recommendations\n• Overall rating prediction\n• Advanced player statistics');
