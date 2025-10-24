@@ -12,8 +12,14 @@ import urllib.request
 import urllib.parse
 import urllib.error
 import html
-from sentence_transformers import SentenceTransformer  # local embeddings
-from transformers import pipeline  # local zero-shot and text2text
+try:
+    from sentence_transformers import SentenceTransformer  # local embeddings
+    from transformers import pipeline  # local zero-shot and text2text
+    MODELS_AVAILABLE = True
+except ImportError:
+    MODELS_AVAILABLE = False
+    print("Warning: Some model features will be disabled - sentence-transformers and transformers not available")
+
 import sqlite3
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
@@ -73,6 +79,8 @@ _ZSC_PIPE = None   # transformers zero-shot classification pipeline
 
 def _ensure_embedder():
     global _EMB_MODEL
+    if not MODELS_AVAILABLE:
+        raise RuntimeError("Model features are not available - sentence-transformers not installed")
     if _EMB_MODEL is None:
         _EMB_MODEL = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
 
